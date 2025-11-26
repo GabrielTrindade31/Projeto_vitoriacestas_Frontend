@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitória Cestas | Estoque</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__content">
+      <p class="hero__eyebrow">Gestão de Estoque</p>
+      <h1>Vitória Cestas</h1>
+      <p class="hero__lead">
+        Acompanhe a saúde do estoque, cadastre produtos e fornecedores e mantenha toda a operação alinhada com o
+        backend já publicado.
+      </p>
+      <div class="hero__actions">
+        <button id="primaryLoginBtn" class="btn btn--primary">Fazer login</button>
+        <button id="docsBtn" class="btn btn--ghost">Abrir documentação</button>
+      </div>
+      <p class="hero__hint">Backend pronto (proxy /api para Vercel): https://projeto-vitoriacestas-backend.vercel.app</p>
+    </div>
+    <div class="hero__panel">
+      <p class="hero__panel-title">Fluxo sugerido</p>
+      <ol>
+        <li>Autentique-se e salve o JWT no navegador.</li>
+        <li>Envie o token em chamadas protegidas (Authorization: Bearer ...).</li>
+        <li>Liste itens e fornecedores antes de editar ou cadastrar.</li>
+        <li>Use mensagens da API para mostrar sucesso ou erro.</li>
+      </ol>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card" id="loginCard">
+      <div class="card__header">
+        <h2>Acesso</h2>
+        <p>Entre para habilitar as ações protegidas.</p>
+      </div>
+      <form id="loginForm" class="form">
+        <label class="form__field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="email@exemplo.com" required />
+        </label>
+        <label class="form__field">
+          <span>Senha</span>
+          <input type="password" name="senha" placeholder="••••••••" required />
+        </label>
+        <button type="submit" class="btn btn--primary">Entrar</button>
+      </form>
+    </section>
+
+    <section class="card card--wide" id="dashboard" hidden>
+      <div class="card__header card__header--row">
+        <div>
+          <h2>Painel principal</h2>
+          <p class="muted">Exibe os últimos itens e fornecedores após login.</p>
+        </div>
+        <div class="pill" id="authStatus">Não autenticado</div>
+      </div>
+
+      <div class="grid">
+        <div class="stack">
+          <div class="stack__header">
+            <h3>Itens recentes</h3>
+            <button class="btn btn--ghost" id="refreshItems">Atualizar</button>
+          </div>
+          <div id="itemsList" class="list">Faça login para carregar os itens.</div>
+        </div>
+
+        <div class="stack">
+          <div class="stack__header">
+            <h3>Fornecedores recentes</h3>
+            <button class="btn btn--ghost" id="refreshSuppliers">Atualizar</button>
+          </div>
+          <div id="suppliersList" class="list">Faça login para carregar os fornecedores.</div>
+        </div>
+      </div>
+
+      <div class="grid grid--cta">
+        <div class="cta" id="itemCta">
+          <div>
+            <p class="cta__eyebrow">Cadastro rápido</p>
+            <h3>Novo item</h3>
+            <p>Informe código, nome, quantidade e preço. Opcionalmente, defina descrição, categoria e fornecedor.</p>
+          </div>
+          <button class="btn btn--primary" id="openItemForm">Cadastrar item</button>
+        </div>
+
+        <div class="cta" id="supplierCta">
+          <div>
+            <p class="cta__eyebrow">Cadastro rápido</p>
+            <h3>Novo fornecedor</h3>
+            <p>Cadastre CNPJ, razão social, contato, email e telefone seguindo as validações do backend.</p>
+          </div>
+          <button class="btn btn--primary" id="openSupplierForm">Cadastrar fornecedor</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="itemDialog" class="modal">
+    <div class="modal__header">
+      <h3>Cadastrar item</h3>
+      <button class="icon-btn" data-close="itemDialog">✕</button>
+    </div>
+    <form id="itemForm" class="form">
+      <label class="form__field">
+        <span>Código *</span>
+        <input name="codigo" required />
+      </label>
+      <label class="form__field">
+        <span>Nome *</span>
+        <input name="nome" required />
+      </label>
+      <label class="form__field">
+        <span>Descrição</span>
+        <textarea name="descricao" rows="2"></textarea>
+      </label>
+      <label class="form__field">
+        <span>Categoria</span>
+        <input name="categoria" />
+      </label>
+      <label class="form__field">
+        <span>Quantidade *</span>
+        <input type="number" name="quantidade" min="0" step="1" required />
+      </label>
+      <label class="form__field">
+        <span>Preço *</span>
+        <input type="number" name="preco" min="0" step="0.01" required />
+      </label>
+      <label class="form__field">
+        <span>ID do fornecedor (opcional)</span>
+        <input name="fornecedorId" />
+      </label>
+      <div class="form__actions">
+        <button type="button" class="btn btn--ghost" data-close="itemDialog">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Salvar item</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="supplierDialog" class="modal">
+    <div class="modal__header">
+      <h3>Cadastrar fornecedor</h3>
+      <button class="icon-btn" data-close="supplierDialog">✕</button>
+    </div>
+    <form id="supplierForm" class="form">
+      <label class="form__field">
+        <span>CNPJ *</span>
+        <input name="cnpj" required />
+      </label>
+      <label class="form__field">
+        <span>Razão social *</span>
+        <input name="razaoSocial" required />
+      </label>
+      <label class="form__field">
+        <span>Contato *</span>
+        <input name="contato" required />
+      </label>
+      <label class="form__field">
+        <span>Email *</span>
+        <input type="email" name="email" required />
+      </label>
+      <label class="form__field">
+        <span>Telefone *</span>
+        <input name="telefone" required placeholder="(00) 00000-0000" />
+      </label>
+      <label class="form__field">
+        <span>ID do endereço (opcional)</span>
+        <input name="enderecoId" />
+      </label>
+      <div class="form__actions">
+        <button type="button" class="btn btn--ghost" data-close="supplierDialog">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Salvar fornecedor</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="main.js"></script>
+</body>
+</html>
