@@ -137,8 +137,9 @@ async function handleLogin(event) {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    if (data.token) {
-      setToken(data.token);
+    const token = data.accessToken || data.token;
+    if (token) {
+      setToken(token);
       showToast('Login realizado com sucesso!');
       await Promise.all([loadItems(), loadSuppliers()]);
     } else {
