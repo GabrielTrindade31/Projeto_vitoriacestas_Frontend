@@ -8,6 +8,7 @@ const storageKey = 'vitoriacestas_token';
 
 const state = {
   token: localStorage.getItem(storageKey),
+  currentPage: 'dashboardPage',
 };
 
 const elements = {
@@ -16,19 +17,48 @@ const elements = {
   primaryLoginBtn: document.getElementById('primaryLoginBtn'),
   docsBtn: document.getElementById('docsBtn'),
   authStatus: document.getElementById('authStatus'),
-  dashboard: document.getElementById('dashboard'),
+  appShell: document.getElementById('appShell'),
   itemsList: document.getElementById('itemsList'),
   suppliersList: document.getElementById('suppliersList'),
   refreshItems: document.getElementById('refreshItems'),
   refreshSuppliers: document.getElementById('refreshSuppliers'),
-  openItemForm: document.getElementById('openItemForm'),
-  openSupplierForm: document.getElementById('openSupplierForm'),
-  itemDialog: document.getElementById('itemDialog'),
-  supplierDialog: document.getElementById('supplierDialog'),
   itemForm: document.getElementById('itemForm'),
   supplierForm: document.getElementById('supplierForm'),
+  customerForm: document.getElementById('customerForm'),
+  addressForm: document.getElementById('addressForm'),
+  phoneForm: document.getElementById('phoneForm'),
+  logoutBtn: document.getElementById('logoutBtn'),
+  pages: document.querySelectorAll('[data-page]'),
+  pageTabs: document.querySelectorAll('.tabs__btn[data-page-target]'),
   toast: document.getElementById('toast'),
 };
+
+function onlyDigits(value = '') {
+  return value.replace(/\D/g, '');
+}
+
+function formatCNPJ(value = '') {
+  const digits = onlyDigits(value).slice(0, 14);
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+function formatPhone(value = '') {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function attachMask(input, formatter) {
+  if (!input) return;
+  input.addEventListener('input', () => {
+    input.value = formatter(input.value);
+  });
+}
 
 function showToast(message, type = 'info') {
   elements.toast.textContent = message;
@@ -53,10 +83,14 @@ function syncAuthState() {
   elements.authStatus.style.background = authenticated
     ? 'rgba(15, 157, 88, 0.16)'
     : 'rgba(15, 23, 42, 0.06)';
-  elements.dashboard.hidden = !authenticated;
+  elements.appShell.hidden = !authenticated;
+  elements.pages.forEach((page) => {
+    page.hidden = !authenticated || page.id !== state.currentPage;
+  });
   if (!authenticated) {
     elements.itemsList.textContent = 'Faça login para carregar os itens.';
     elements.suppliersList.textContent = 'Faça login para carregar os fornecedores.';
+    state.currentPage = 'dashboardPage';
   }
 }
 
@@ -99,6 +133,21 @@ function renderList(container, items, type) {
   });
 }
 
+function setActivePage(targetId) {
+  if (!state.token) {
+    showToast('Faça login para navegar pelas páginas protegidas.', 'error');
+    return;
+  }
+  state.currentPage = targetId;
+  elements.pages.forEach((page) => {
+    page.hidden = page.id !== targetId;
+  });
+  elements.pageTabs.forEach((btn) => {
+    const isActive = btn.dataset.pageTarget === targetId;
+    btn.classList.toggle('tabs__btn--active', isActive);
+  });
+}
+
 async function loadItems() {
   try {
     const { data } = await request('/items');
@@ -117,14 +166,6 @@ async function loadSuppliers() {
   }
 }
 
-function openDialog(dialog) {
-  dialog.showModal();
-}
-
-function closeDialog(dialog) {
-  dialog.close();
-}
-
 function serializeForm(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
@@ -141,7 +182,9 @@ async function handleLogin(event) {
     if (token) {
       setToken(token);
       showToast('Login realizado com sucesso!');
+      elements.appShell.hidden = false;
       await Promise.all([loadItems(), loadSuppliers()]);
+      setActivePage('dashboardPage');
     } else {
       showToast('Token não retornado pela API.', 'error');
     }
@@ -160,6 +203,7 @@ async function handleItemSubmit(event) {
   }
   payload.quantidade = Number(payload.quantidade);
   payload.preco = Number(payload.preco);
+  payload.fornecedorId = payload.fornecedorId ? Number(payload.fornecedorId) : null;
 
   try {
     await request('/items', {
@@ -168,7 +212,6 @@ async function handleItemSubmit(event) {
     });
     showToast('Item cadastrado com sucesso!');
     form.reset();
-    closeDialog(elements.itemDialog);
     loadItems();
   } catch (error) {
     showToast(error.message, 'error');
@@ -179,6 +222,22 @@ async function handleSupplierSubmit(event) {
   event.preventDefault();
   const form = elements.supplierForm;
   const payload = serializeForm(form);
+  const cnpj = onlyDigits(payload.cnpj);
+  const telefone = onlyDigits(payload.telefone);
+
+  if (cnpj.length !== 14) {
+    showToast('CNPJ deve conter 14 dígitos.', 'error');
+    return;
+  }
+  if (telefone.length < 10) {
+    showToast('Telefone deve conter ao menos 10 dígitos.', 'error');
+    return;
+  }
+
+  payload.cnpj = cnpj;
+  payload.telefone = telefone;
+  payload.enderecoId = payload.enderecoId ? Number(payload.enderecoId) || 0 : 0;
+
   try {
     await request('/suppliers', {
       method: 'POST',
@@ -186,8 +245,103 @@ async function handleSupplierSubmit(event) {
     });
     showToast('Fornecedor cadastrado com sucesso!');
     form.reset();
-    closeDialog(elements.supplierDialog);
     loadSuppliers();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function handleCustomerSubmit(event) {
+  event.preventDefault();
+  const form = elements.customerForm;
+  const payload = serializeForm(form);
+
+  if (!payload.dataNascimento || !payload.enderecoId) {
+    showToast('Endereço e data de nascimento são obrigatórios.', 'error');
+    return;
+  }
+
+  const telefoneDigits = onlyDigits(payload.telefone);
+  if (telefoneDigits && telefoneDigits.length < 10) {
+    showToast('Telefone do cliente precisa ter ao menos 10 dígitos.', 'error');
+    return;
+  }
+
+  payload.cpf = onlyDigits(payload.cpf);
+  payload.cnpj = onlyDigits(payload.cnpj);
+  payload.enderecoId = Number(payload.enderecoId) || 0;
+  if (payload.enderecoId === 0) {
+    showToast('Informe um endereço válido (diferente de 0).', 'error');
+    return;
+  }
+
+  try {
+    const customerResponse = await request('/customers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const clienteId = customerResponse.data?.id;
+    if (clienteId && telefoneDigits) {
+      try {
+        await request('/phones', {
+          method: 'POST',
+          body: JSON.stringify({ numero: telefoneDigits, clienteId }),
+        });
+      } catch (phoneError) {
+        showToast(`Cliente salvo, mas o telefone não foi cadastrado: ${phoneError.message}`, 'error');
+        return;
+      }
+    }
+    showToast('Cliente cadastrado com sucesso!');
+    form.reset();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function handleAddressSubmit(event) {
+  event.preventDefault();
+  const form = elements.addressForm;
+  const payload = serializeForm(form);
+
+  payload.cep = onlyDigits(payload.cep);
+  payload.numero = payload.numero ? Number(payload.numero) || 0 : 0;
+
+  try {
+    await request('/addresses', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    showToast('Endereço cadastrado com sucesso!');
+    form.reset();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function handlePhoneSubmit(event) {
+  event.preventDefault();
+  const form = elements.phoneForm;
+  const payload = serializeForm(form);
+  const numero = onlyDigits(payload.numero);
+  const clienteId = Number(payload.clienteId);
+
+  if (numero.length < 10) {
+    showToast('Telefone deve ter ao menos 10 dígitos.', 'error');
+    return;
+  }
+  if (!clienteId) {
+    showToast('Informe um ID de cliente válido.', 'error');
+    return;
+  }
+
+  try {
+    await request('/phones', {
+      method: 'POST',
+      body: JSON.stringify({ numero, clienteId }),
+    });
+    showToast('Telefone cadastrado com sucesso!');
+    form.reset();
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -205,15 +359,29 @@ function addEventListeners() {
   elements.loginForm.addEventListener('submit', handleLogin);
   elements.refreshItems.addEventListener('click', loadItems);
   elements.refreshSuppliers.addEventListener('click', loadSuppliers);
-  elements.openItemForm.addEventListener('click', () => openDialog(elements.itemDialog));
-  elements.openSupplierForm.addEventListener('click', () => openDialog(elements.supplierDialog));
-
-  document.querySelectorAll('[data-close]').forEach((btn) => {
-    btn.addEventListener('click', () => closeDialog(document.getElementById(btn.dataset.close)));
-  });
 
   elements.itemForm.addEventListener('submit', handleItemSubmit);
   elements.supplierForm.addEventListener('submit', handleSupplierSubmit);
+  elements.customerForm.addEventListener('submit', handleCustomerSubmit);
+  elements.addressForm.addEventListener('submit', handleAddressSubmit);
+  elements.phoneForm.addEventListener('submit', handlePhoneSubmit);
+
+  elements.logoutBtn.addEventListener('click', () => {
+    setToken(null);
+    showToast('Sessão encerrada.');
+  });
+
+  document.querySelectorAll('[data-page-target]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setActivePage(btn.dataset.pageTarget);
+    });
+  });
+
+  attachMask(document.querySelector('#suppliersPage input[name="cnpj"]'), formatCNPJ);
+  attachMask(document.querySelector('#suppliersPage input[name="telefone"]'), formatPhone);
+  attachMask(document.querySelector('#customersPage input[name="cnpj"]'), formatCNPJ);
+  attachMask(document.querySelector('#customersPage input[name="telefone"]'), formatPhone);
+  attachMask(document.querySelector('#phonesPage input[name="numero"]'), formatPhone);
 }
 
 function init() {
@@ -222,6 +390,8 @@ function init() {
   if (state.token) {
     loadItems();
     loadSuppliers();
+    elements.appShell.hidden = false;
+    setActivePage(state.currentPage);
   }
 }
 

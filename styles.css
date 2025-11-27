@@ -99,6 +99,37 @@ body {
   box-shadow: var(--shadow);
 }
 
+.shell__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabs__btn {
+  border: 1px solid var(--border);
+  background: #e9f8ef;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tabs__btn--active {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 10px 25px rgba(15, 157, 88, 0.18);
+}
+
 .card--wide {
   grid-column: 1 / -1;
 }
