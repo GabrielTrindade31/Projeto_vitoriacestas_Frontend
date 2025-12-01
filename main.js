@@ -15,16 +15,20 @@ const state = {
   token: localStorage.getItem(storageKey),
   currentPage: 'dashboardPage',
   latestItems: [],
+  selectedItem: null,
   alertsPaused: false,
   visualsVisible: false,
   lastAlertHash: '',
+  itemImagePreviewUrl: '',
 };
 
 const elements = {
   loginForm: document.getElementById('loginForm'),
   loginCard: document.getElementById('loginCard'),
   primaryLoginBtn: document.getElementById('primaryLoginBtn'),
+  loginShortcut: document.getElementById('loginShortcut'),
   docsBtn: document.getElementById('docsBtn'),
+  docsBtnHeader: document.getElementById('docsBtnHeader'),
   authStatus: document.getElementById('authStatus'),
   appShell: document.getElementById('appShell'),
   itemsList: document.getElementById('itemsList'),
@@ -40,6 +44,16 @@ const elements = {
   alertsList: document.getElementById('alertsList'),
   toggleAlerts: document.getElementById('toggleAlerts'),
   itemForm: document.getElementById('itemForm'),
+  itemImage: document.getElementById('itemImage'),
+  itemImagePreview: document.getElementById('itemImagePreview'),
+  itemsBoard: document.getElementById('itemsBoard'),
+  itemsCount: document.getElementById('itemsCount'),
+  selectedItemName: document.getElementById('selectedItemName'),
+  selectedItemCode: document.getElementById('selectedItemCode'),
+  selectedItemQtd: document.getElementById('selectedItemQtd'),
+  selectedItemPrice: document.getElementById('selectedItemPrice'),
+  selectedItemTotal: document.getElementById('selectedItemTotal'),
+  exportItems: document.getElementById('exportItems'),
   supplierForm: document.getElementById('supplierForm'),
   customerForm: document.getElementById('customerForm'),
   addressForm: document.getElementById('addressForm'),
@@ -48,6 +62,7 @@ const elements = {
   logoutBtn: document.getElementById('logoutBtn'),
   pages: document.querySelectorAll('[data-page]'),
   pageTabs: document.querySelectorAll('.tabs__btn[data-page-target]'),
+  navItems: document.querySelectorAll('.nav__item[data-page-target]'),
   toast: document.getElementById('toast'),
 };
 
@@ -77,6 +92,15 @@ function attachMask(input, formatter) {
   if (!input) return;
   input.addEventListener('input', () => {
     input.value = formatter(input.value);
+  });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 }
 
@@ -121,8 +145,8 @@ function syncAuthState() {
     page.hidden = !authenticated || page.id !== state.currentPage;
   });
   if (!authenticated) {
-    elements.itemsList.textContent = 'Faça login para carregar os itens.';
-    elements.suppliersList.textContent = 'Faça login para carregar os fornecedores.';
+    elements.itemsList.textContent = 'Os itens mais recentes aparecem aqui após carregar o painel.';
+    elements.suppliersList.textContent = 'Últimos fornecedores serão exibidos assim que você acessar.';
     state.currentPage = 'dashboardPage';
   }
 }
@@ -229,6 +253,49 @@ function renderList(container, items, type) {
   });
 }
 
+function updateSelectedItem(item) {
+  state.selectedItem = item || null;
+  if (!item) {
+    elements.selectedItemName.textContent = 'Selecione um item';
+    elements.selectedItemCode.textContent = 'Nenhum código carregado';
+    elements.selectedItemQtd.textContent = '–';
+    elements.selectedItemPrice.textContent = '–';
+    elements.selectedItemTotal.textContent = '–';
+    return;
+  }
+  elements.selectedItemName.textContent = item.nome || 'Sem nome';
+  elements.selectedItemCode.textContent = item.codigo || 'Sem código';
+  elements.selectedItemQtd.textContent = item.quantidade ?? '–';
+  elements.selectedItemPrice.textContent = `R$ ${Number(item.preco || 0).toFixed(2)}`;
+  elements.selectedItemTotal.textContent = `R$ ${(
+    (Number(item.quantidade) || 0) * (Number(item.preco) || 0)
+  ).toFixed(2)}`;
+}
+
+function renderItemsBoard(items = []) {
+  if (!elements.itemsBoard) return;
+  elements.itemsCount.textContent = items.length;
+  if (!items.length) {
+    elements.itemsBoard.textContent = 'Nenhum item carregado.';
+    return;
+  }
+  elements.itemsBoard.innerHTML = '';
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'list__item';
+    row.innerHTML = `
+      <div>
+        <strong>${item.nome}</strong>
+        <span class="muted">${item.codigo}</span>
+      </div>
+      <span class="badge">Qtd: ${item.quantidade}</span>
+    `;
+    row.addEventListener('click', () => updateSelectedItem(item));
+    elements.itemsBoard.appendChild(row);
+  });
+  updateSelectedItem(items[0]);
+}
+
 function buildCategoryDataset(items = []) {
   const buckets = {};
   items.forEach((item) => {
@@ -286,6 +353,10 @@ function setActivePage(targetId) {
   elements.pageTabs.forEach((btn) => {
     const isActive = btn.dataset.pageTarget === targetId;
     btn.classList.toggle('tabs__btn--active', isActive);
+  });
+  elements.navItems.forEach((btn) => {
+    const isActive = btn.dataset.pageTarget === targetId;
+    btn.classList.toggle('nav__item--active', isActive);
   });
 }
 
@@ -381,6 +452,7 @@ async function loadItems() {
     const { data } = await request('/items');
     state.latestItems = data || [];
     renderList(elements.itemsList, state.latestItems, 'item');
+    renderItemsBoard(state.latestItems);
     queueVisualRefresh();
     startAlertCron();
   } catch (error) {
@@ -436,6 +508,12 @@ async function handleItemSubmit(event) {
   payload.preco = Number(payload.preco);
   payload.fornecedorId = payload.fornecedorId ? Number(payload.fornecedorId) : null;
 
+  const file = elements.itemImage?.files?.[0];
+  if (file) {
+    payload.imagemBlob = await readFileAsDataUrl(file);
+    payload.imagemNome = file.name;
+  }
+
   try {
     await request('/items', {
       method: 'POST',
@@ -443,6 +521,9 @@ async function handleItemSubmit(event) {
     });
     showToast('Item cadastrado com sucesso!');
     form.reset();
+    if (elements.itemImagePreview) {
+      elements.itemImagePreview.textContent = 'Nenhuma imagem anexada.';
+    }
     loadItems();
   } catch (error) {
     showToast(error.message, 'error');
@@ -607,20 +688,77 @@ function handleExportClick(event) {
   chartManager.export(id, format);
 }
 
-function addEventListeners() {
-  elements.primaryLoginBtn.addEventListener('click', () => {
-    elements.loginCard.scrollIntoView({ behavior: 'smooth' });
-  });
+function handleImagePreview() {
+  const file = elements.itemImage?.files?.[0];
+  if (!file) {
+    elements.itemImagePreview.textContent = 'Nenhuma imagem anexada.';
+    return;
+  }
+  readFileAsDataUrl(file)
+    .then((dataUrl) => {
+      state.itemImagePreviewUrl = dataUrl;
+      elements.itemImagePreview.innerHTML = `<img src="${dataUrl}" alt="Pré-visualização do item" />`;
+    })
+    .catch(() => {
+      elements.itemImagePreview.textContent = 'Não foi possível ler o arquivo.';
+    });
+}
 
-  elements.docsBtn.addEventListener('click', () => {
-    window.open(DOCS_URL, '_blank');
-  });
+function exportItemsToExcel() {
+  if (!state.latestItems.length) {
+    showToast('Nada para exportar ainda.', 'error');
+    return;
+  }
+  const header = ['Código', 'Nome', 'Categoria', 'Quantidade', 'Preço'];
+  const rows = state.latestItems.map((item) => [
+    item.codigo,
+    item.nome,
+    item.categoria || 'Sem categoria',
+    item.quantidade,
+    item.preco,
+  ]);
+  const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'estoque.xlsx';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function addEventListeners() {
+  if (elements.primaryLoginBtn) {
+    elements.primaryLoginBtn.addEventListener('click', () => {
+      elements.loginCard.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  if (elements.loginShortcut) {
+    elements.loginShortcut.addEventListener('click', () => {
+      elements.loginCard.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  if (elements.docsBtn) {
+    elements.docsBtn.addEventListener('click', () => {
+      window.open(DOCS_URL, '_blank');
+    });
+  }
+
+  if (elements.docsBtnHeader) {
+    elements.docsBtnHeader.addEventListener('click', () => {
+      window.open(DOCS_URL, '_blank');
+    });
+  }
 
   elements.loginForm.addEventListener('submit', handleLogin);
   elements.refreshItems.addEventListener('click', loadItems);
   elements.refreshSuppliers.addEventListener('click', loadSuppliers);
 
   elements.itemForm.addEventListener('submit', handleItemSubmit);
+  elements.itemImage.addEventListener('change', handleImagePreview);
+  elements.exportItems.addEventListener('click', exportItemsToExcel);
   elements.supplierForm.addEventListener('submit', handleSupplierSubmit);
   elements.customerForm.addEventListener('submit', handleCustomerSubmit);
   elements.addressForm.addEventListener('submit', handleAddressSubmit);
