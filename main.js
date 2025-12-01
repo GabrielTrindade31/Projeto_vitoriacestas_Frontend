@@ -3,7 +3,6 @@ const API_BASE =
   (window.location.hostname.includes('vercel.app')
     ? '/api'
     : 'https://projeto-vitoriacestas-backend.vercel.app/api');
-const DOCS_URL = `${API_BASE.replace(/\/api$/, '')}/docs`;
 const storageKey = 'vitoriacestas_token';
 const thresholdStorageKey = 'vitoriacestas_thresholds';
 
@@ -13,9 +12,11 @@ const chartState = {
 
 const state = {
   token: localStorage.getItem(storageKey),
-  currentPage: 'dashboardPage',
+  currentPage: 'homePage',
   latestItems: [],
+  latestSuppliers: [],
   selectedItem: null,
+  detailedItem: null,
   alertsPaused: false,
   visualsVisible: false,
   lastAlertHash: '',
@@ -24,13 +25,10 @@ const state = {
 
 const elements = {
   loginForm: document.getElementById('loginForm'),
-  loginCard: document.getElementById('loginCard'),
-  primaryLoginBtn: document.getElementById('primaryLoginBtn'),
-  loginShortcut: document.getElementById('loginShortcut'),
   docsBtn: document.getElementById('docsBtn'),
   docsBtnHeader: document.getElementById('docsBtnHeader'),
   authStatus: document.getElementById('authStatus'),
-  appShell: document.getElementById('appShell'),
+  authToggle: document.getElementById('authToggle'),
   itemsList: document.getElementById('itemsList'),
   suppliersList: document.getElementById('suppliersList'),
   refreshItems: document.getElementById('refreshItems'),
@@ -53,15 +51,22 @@ const elements = {
   selectedItemQtd: document.getElementById('selectedItemQtd'),
   selectedItemPrice: document.getElementById('selectedItemPrice'),
   selectedItemTotal: document.getElementById('selectedItemTotal'),
+  detailName: document.getElementById('detailName'),
+  detailCode: document.getElementById('detailCode'),
+  detailQtd: document.getElementById('detailQtd'),
+  detailPrice: document.getElementById('detailPrice'),
+  detailTotal: document.getElementById('detailTotal'),
+  detailCategory: document.getElementById('detailCategory'),
+  detailDescription: document.getElementById('detailDescription'),
+  detailImage: document.getElementById('detailImage'),
+  exportDetail: document.getElementById('exportDetail'),
   exportItems: document.getElementById('exportItems'),
   supplierForm: document.getElementById('supplierForm'),
   customerForm: document.getElementById('customerForm'),
   addressForm: document.getElementById('addressForm'),
   phoneForm: document.getElementById('phoneForm'),
   thresholdForm: document.getElementById('thresholdForm'),
-  logoutBtn: document.getElementById('logoutBtn'),
   pages: document.querySelectorAll('[data-page]'),
-  pageTabs: document.querySelectorAll('.tabs__btn[data-page-target]'),
   navItems: document.querySelectorAll('.nav__item[data-page-target]'),
   toast: document.getElementById('toast'),
 };
@@ -136,18 +141,25 @@ function setToken(token) {
 
 function syncAuthState() {
   const authenticated = Boolean(state.token);
-  elements.authStatus.textContent = authenticated ? 'Autenticado' : 'Não autenticado';
-  elements.authStatus.style.background = authenticated
-    ? 'rgba(15, 157, 88, 0.16)'
-    : 'rgba(15, 23, 42, 0.06)';
-  elements.appShell.hidden = !authenticated;
+  if (elements.authStatus) {
+    elements.authStatus.textContent = authenticated ? 'Autenticado' : 'Não autenticado';
+    elements.authStatus.style.background = authenticated
+      ? 'rgba(15, 157, 88, 0.16)'
+      : 'rgba(15, 23, 42, 0.06)';
+  }
+  if (elements.authToggle) {
+    elements.authToggle.textContent = authenticated ? 'Logout' : 'Login';
+  }
   elements.pages.forEach((page) => {
-    page.hidden = !authenticated || page.id !== state.currentPage;
+    const isPublic = ['homePage', 'loginPage'].includes(page.id);
+    const shouldShow = page.id === state.currentPage && (authenticated || isPublic);
+    page.hidden = !shouldShow;
   });
-  if (!authenticated) {
+  if (!authenticated && !['homePage', 'loginPage'].includes(state.currentPage)) {
+    state.currentPage = 'homePage';
+    setActivePage('homePage', false);
     elements.itemsList.textContent = 'Os itens mais recentes aparecem aqui após carregar o painel.';
     elements.suppliersList.textContent = 'Últimos fornecedores serão exibidos assim que você acessar.';
-    state.currentPage = 'dashboardPage';
   }
 }
 
@@ -272,6 +284,31 @@ function updateSelectedItem(item) {
   ).toFixed(2)}`;
 }
 
+
+function openItemDetail(item) {
+  state.detailedItem = item;
+  elements.detailName.textContent = item.nome || 'Sem nome';
+  elements.detailCode.textContent = item.codigo || 'Código não disponível';
+  elements.detailQtd.textContent = item.quantidade ?? '–';
+  elements.detailPrice.textContent = `R$ ${Number(item.preco || 0).toFixed(2)}`;
+  elements.detailTotal.textContent = `R$ ${
+    (Number(item.quantidade) || 0) * (Number(item.preco) || 0)
+  ).toFixed(2)}`;
+  elements.detailCategory.textContent = item.categoria || 'Sem categoria';
+  elements.detailDescription.textContent = item.descricao || 'Sem descrição';
+  if (item.imagemBlob || state.itemImagePreviewUrl) {
+    const img = document.createElement('img');
+    img.src = item.imagemBlob || state.itemImagePreviewUrl;
+    img.alt = item.nome || 'Imagem do item';
+    elements.detailImage.innerHTML = '';
+    elements.detailImage.appendChild(img);
+  } else {
+    elements.detailImage.textContent = 'Nenhuma imagem enviada.';
+  }
+  setActivePage('itemDetailPage');
+}
+
+
 function renderItemsBoard(items = []) {
   if (!elements.itemsBoard) return;
   elements.itemsCount.textContent = items.length;
@@ -282,14 +319,21 @@ function renderItemsBoard(items = []) {
   elements.itemsBoard.innerHTML = '';
   items.forEach((item) => {
     const row = document.createElement('div');
-    row.className = 'list__item';
+    row.className = 'list__item list__item--action';
     row.innerHTML = `
       <div>
         <strong>${item.nome}</strong>
         <span class="muted">${item.codigo}</span>
       </div>
-      <span class="badge">Qtd: ${item.quantidade}</span>
+      <div class="list__actions">
+        <span class="badge">Qtd: ${item.quantidade}</span>
+        <button class="btn btn--ghost btn--xs" data-code="${item.codigo}">Ver página</button>
+      </div>
     `;
+    row.querySelector('button').addEventListener('click', (event) => {
+      event.stopPropagation();
+      openItemDetail(item);
+    });
     row.addEventListener('click', () => updateSelectedItem(item));
     elements.itemsBoard.appendChild(row);
   });
@@ -341,21 +385,22 @@ function buildTrendDataset(items = []) {
   };
 }
 
-function setActivePage(targetId) {
-  if (!state.token) {
-    showToast('Faça login para navegar pelas páginas protegidas.', 'error');
-    return;
+function setActivePage(targetId, warn = true) {
+  const isPublic = ['homePage', 'loginPage'].includes(targetId);
+  if (!state.token && !isPublic) {
+    state.currentPage = 'loginPage';
+    if (warn) showToast('Faça login para navegar pelas páginas protegidas.', 'error');
+  } else {
+    state.currentPage = targetId;
   }
-  state.currentPage = targetId;
   elements.pages.forEach((page) => {
-    page.hidden = page.id !== targetId;
+    const shouldShow = page.id === state.currentPage;
+    const publicPage = ['homePage', 'loginPage'].includes(page.id);
+    page.hidden = !(shouldShow && (state.token || publicPage));
   });
-  elements.pageTabs.forEach((btn) => {
-    const isActive = btn.dataset.pageTarget === targetId;
-    btn.classList.toggle('tabs__btn--active', isActive);
-  });
+  const navKey = state.currentPage === 'itemDetailPage' ? 'itemsPage' : state.currentPage;
   elements.navItems.forEach((btn) => {
-    const isActive = btn.dataset.pageTarget === targetId;
+    const isActive = btn.dataset.pageTarget === navKey;
     btn.classList.toggle('nav__item--active', isActive);
   });
 }
@@ -463,7 +508,8 @@ async function loadItems() {
 async function loadSuppliers() {
   try {
     const { data } = await request('/suppliers');
-    renderList(elements.suppliersList, data, 'supplier');
+    state.latestSuppliers = data || [];
+    renderList(elements.suppliersList, state.latestSuppliers, 'supplier');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -485,9 +531,8 @@ async function handleLogin(event) {
     if (token) {
       setToken(token);
       showToast('Login realizado com sucesso!');
-      elements.appShell.hidden = false;
       await Promise.all([loadItems(), loadSuppliers()]);
-      setActivePage('dashboardPage');
+      setActivePage('homePage', false);
     } else {
       showToast('Token não retornado pela API.', 'error');
     }
@@ -704,13 +749,13 @@ function handleImagePreview() {
     });
 }
 
-function exportItemsToExcel() {
-  if (!state.latestItems.length) {
+function exportItemsToExcel(items = state.latestItems, filename = 'estoque.xlsx') {
+  if (!items || !items.length) {
     showToast('Nada para exportar ainda.', 'error');
     return;
   }
   const header = ['Código', 'Nome', 'Categoria', 'Quantidade', 'Preço'];
-  const rows = state.latestItems.map((item) => [
+  const rows = items.map((item) => [
     item.codigo,
     item.nome,
     item.categoria || 'Sem categoria',
@@ -722,33 +767,70 @@ function exportItemsToExcel() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'estoque.xlsx';
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
 
+function exportTableFromContext() {
+  switch (state.currentPage) {
+    case 'homePage':
+    case 'itemsPage':
+      exportItemsToExcel(state.latestItems, 'estoque.xlsx');
+      break;
+    case 'itemDetailPage':
+      if (state.detailedItem) {
+        exportItemsToExcel([state.detailedItem], `${state.detailedItem.codigo || 'item'}.xlsx`);
+      } else {
+        showToast('Abra um item para exportar.', 'error');
+      }
+      break;
+    case 'suppliersPage': {
+      if (!state.latestSuppliers.length) {
+        showToast('Nenhum fornecedor carregado para exportar.', 'error');
+        break;
+      }
+      const header = ['Razão Social', 'Contato', 'Email', 'Telefone'];
+      const rows = state.latestSuppliers.map((supplier) => [
+        supplier.razaoSocial || supplier.nome,
+        supplier.contato || 'N/D',
+        supplier.email || 'N/D',
+        supplier.telefone || 'N/D',
+      ]);
+      const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'fornecedores.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+      break;
+    }
+    default:
+      showToast('Nada para exportar nesta página.', 'error');
+  }
+}
+
 function addEventListeners() {
-  if (elements.primaryLoginBtn) {
-    elements.primaryLoginBtn.addEventListener('click', () => {
-      elements.loginCard.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
-
-  if (elements.loginShortcut) {
-    elements.loginShortcut.addEventListener('click', () => {
-      elements.loginCard.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
-
   if (elements.docsBtn) {
-    elements.docsBtn.addEventListener('click', () => {
-      window.open(DOCS_URL, '_blank');
-    });
+    elements.docsBtn.addEventListener('click', exportTableFromContext);
   }
 
   if (elements.docsBtnHeader) {
-    elements.docsBtnHeader.addEventListener('click', () => {
-      window.open(DOCS_URL, '_blank');
+    elements.docsBtnHeader.addEventListener('click', exportTableFromContext);
+  }
+
+  if (elements.authToggle) {
+    elements.authToggle.addEventListener('click', () => {
+      if (state.token) {
+        setToken(null);
+        state.currentPage = 'homePage';
+        setActivePage('homePage', false);
+        showToast('Sessão encerrada.');
+      } else {
+        setActivePage('loginPage', false);
+      }
     });
   }
 
@@ -758,17 +840,15 @@ function addEventListeners() {
 
   elements.itemForm.addEventListener('submit', handleItemSubmit);
   elements.itemImage.addEventListener('change', handleImagePreview);
-  elements.exportItems.addEventListener('click', exportItemsToExcel);
+  elements.exportItems.addEventListener('click', () => exportItemsToExcel());
+  if (elements.exportDetail) {
+    elements.exportDetail.addEventListener('click', () => exportTableFromContext());
+  }
   elements.supplierForm.addEventListener('submit', handleSupplierSubmit);
   elements.customerForm.addEventListener('submit', handleCustomerSubmit);
   elements.addressForm.addEventListener('submit', handleAddressSubmit);
   elements.phoneForm.addEventListener('submit', handlePhoneSubmit);
   elements.thresholdForm.addEventListener('submit', handleThresholdSubmit);
-
-  elements.logoutBtn.addEventListener('click', () => {
-    setToken(null);
-    showToast('Sessão encerrada.');
-  });
 
   document.querySelectorAll('[data-page-target]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -799,7 +879,6 @@ function init() {
   if (state.token) {
     loadItems();
     loadSuppliers();
-    elements.appShell.hidden = false;
     setActivePage(state.currentPage);
   }
 }

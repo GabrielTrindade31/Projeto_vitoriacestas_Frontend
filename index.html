@@ -21,7 +21,7 @@
         </div>
       </div>
       <nav class="nav">
-        <button class="nav__item nav__item--active" data-page-target="dashboardPage">
+        <button class="nav__item nav__item--active" data-page-target="homePage">
           <span>Início</span>
         </button>
         <button class="nav__item" data-page-target="itemsPage">
@@ -41,65 +41,41 @@
         </button>
       </nav>
       <div class="sidebar__cta">
-        <p>Documentação</p>
-        <button id="docsBtn" class="btn btn--ghost">Abrir</button>
+        <p>Exportar tabela</p>
+        <button id="docsBtn" class="btn btn--ghost">Gerar .xlsx</button>
       </div>
     </aside>
 
     <div class="workspace">
+      <div class="topbar">
+        <span class="topbar__hint">Bem-vindo! Navegue pelo menu ou veja os últimos itens.</span>
+        <button id="authToggle" class="btn btn--ghost">Login</button>
+      </div>
       <header class="hero">
         <div class="hero__content">
           <p class="hero__eyebrow">Como funciona</p>
           <h1>Organize o estoque em minutos</h1>
           <p class="hero__lead">
-            Cadastre itens, fornecedores e clientes em um só lugar. Cada item ganha um pequeno dashboard, com opção de exportar o estoque para Excel e anexar imagens em blob para o backend.
+            Cadastre itens, fornecedores e clientes em um só lugar. Cada item abre em sua própria página com dashboard, exportação para Excel e upload de imagens via blob.
           </p>
           <div class="hero__actions">
-            <button id="docsBtnHeader" class="btn btn--ghost">Ver documentação</button>
+            <button id="docsBtnHeader" class="btn btn--ghost">Baixar tabela atual</button>
           </div>
-          <p class="hero__hint">Últimas inclusões aparecem no painel principal. Login fica disponível logo abaixo, quando precisar.</p>
+          <p class="hero__hint">Últimas inclusões aparecem no painel principal. O login fica no canto superior direito.</p>
         </div>
         <div class="hero__panel">
           <p class="hero__panel-title">Destaques rápidos</p>
           <ol>
             <li>Menu lateral simplifica a navegação entre cadastros.</li>
-            <li>Dashboard de cada item com total, preço e imagem.</li>
-            <li>Exportação direta para Excel/CSV.</li>
+            <li>Cada item abre em tela dedicada com total, preço e imagem.</li>
+            <li>Exportação direta da tabela visível para Excel/CSV.</li>
             <li>Upload de imagem em blob (Data URL) junto ao item.</li>
           </ol>
         </div>
       </header>
 
       <main class="layout">
-        <section class="card card--wide login-panel" id="loginCard">
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Acesso do time</h2>
-              <p class="muted">Use seu login quando precisar liberar cadastros e dashboards protegidos.</p>
-            </div>
-            <div class="pill" id="authStatus">Não autenticado</div>
-          </div>
-          <form id="loginForm" class="form form--inline">
-            <label class="form__field">
-              <span>Email</span>
-              <input type="email" name="email" placeholder="email@exemplo.com" required />
-            </label>
-            <label class="form__field">
-              <span>Senha</span>
-              <input type="password" name="password" placeholder="••••••••" required />
-            </label>
-            <button type="submit" class="btn btn--primary">Entrar</button>
-          </form>
-        </section>
-
-        <section class="card card--wide" id="appShell" hidden>
-          <div class="shell__bar">
-            <div class="tabs" id="pageTabs" aria-hidden="true"></div>
-            <button type="button" class="btn btn--ghost" id="logoutBtn">Sair</button>
-          </div>
-        </section>
-
-        <section class="card card--wide page" id="dashboardPage" data-page>
+        <section class="card card--wide page" id="homePage" data-page>
           <div class="card__header card__header--row">
             <div>
               <h2>Painel principal</h2>
@@ -218,7 +194,7 @@
             </div>
             <div class="item-actions">
               <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
-              <button class="btn btn--ghost" data-page-target="dashboardPage">Voltar</button>
+              <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
             </div>
           </div>
           <div class="item-grid">
@@ -244,7 +220,7 @@
                 </label>
                 <label class="form__field">
                   <span>ID do fornecedor (opcional)</span>
-                  <input name="fornecedorId" inputmode="numeric" pattern="\\d*" />
+                  <input name="fornecedorId" inputmode="numeric" pattern="\d*" />
                 </label>
               </div>
               <div class="form__row">
@@ -326,13 +302,44 @@
           </form>
         </section>
 
+        <section class="card card--wide page" id="itemDetailPage" data-page hidden>
+          <div class="card__header card__header--row">
+            <div>
+              <p class="hero__eyebrow">Página do item</p>
+              <h2 id="detailName">Selecione um item</h2>
+              <p class="muted" id="detailCode">Código não disponível</p>
+            </div>
+            <div class="item-actions">
+              <button class="btn btn--ghost" data-page-target="itemsPage">Voltar para itens</button>
+              <button class="btn btn--ghost" id="exportDetail">Baixar .xlsx</button>
+            </div>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-card">
+              <p class="muted">Estoque</p>
+              <h3 id="detailQtd">–</h3>
+              <p class="muted">Preço</p>
+              <h4 id="detailPrice">–</h4>
+              <p class="muted">Total</p>
+              <h4 id="detailTotal">–</h4>
+            </div>
+            <div class="detail-card">
+              <p class="muted">Categoria</p>
+              <h4 id="detailCategory">–</h4>
+              <p class="muted">Descrição</p>
+              <p id="detailDescription">–</p>
+            </div>
+            <div class="detail-card detail-card--image" id="detailImage">Nenhuma imagem enviada.</div>
+          </div>
+        </section>
+
         <section class="card card--wide page" id="suppliersPage" data-page hidden>
           <div class="card__header card__header--row">
             <div>
               <h2>Cadastro de fornecedores</h2>
               <p class="muted">Campos numéricos aceitam apenas dígitos; IDs vazios são enviados como 0.</p>
             </div>
-            <button class="btn btn--ghost" data-page-target="dashboardPage">Voltar</button>
+            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
           </div>
           <form id="supplierForm" class="form">
             <label class="form__field">
@@ -357,7 +364,7 @@
             </label>
             <label class="form__field">
               <span>ID do endereço (opcional)</span>
-              <input name="enderecoId" inputmode="numeric" pattern="\\d*" placeholder="0" />
+              <input name="enderecoId" inputmode="numeric" pattern="\d*" placeholder="0" />
             </label>
             <div class="form__actions">
               <button type="submit" class="btn btn--primary">Salvar fornecedor</button>
@@ -371,7 +378,7 @@
               <h2>Cadastro de clientes</h2>
               <p class="muted">Nome, data de nascimento e endereço são obrigatórios. Telefones aceitam apenas números.</p>
             </div>
-            <button class="btn btn--ghost" data-page-target="dashboardPage">Voltar</button>
+            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
           </div>
           <form id="customerForm" class="form">
             <label class="form__field">
@@ -380,11 +387,11 @@
             </label>
             <label class="form__field">
               <span>CPF</span>
-              <input name="cpf" inputmode="numeric" pattern="\\d*" maxlength="14" placeholder="Somente números" />
+              <input name="cpf" inputmode="numeric" pattern="\d*" maxlength="14" placeholder="Somente números" />
             </label>
             <label class="form__field">
               <span>CNPJ</span>
-              <input name="cnpj" inputmode="numeric" pattern="\\d*" maxlength="18" placeholder="Somente números" />
+              <input name="cnpj" inputmode="numeric" pattern="\d*" maxlength="18" placeholder="Somente números" />
             </label>
             <label class="form__field">
               <span>Email</span>
@@ -396,7 +403,7 @@
             </label>
             <label class="form__field">
               <span>ID do endereço *</span>
-              <input name="enderecoId" required inputmode="numeric" pattern="\\d*" />
+              <input name="enderecoId" required inputmode="numeric" pattern="\d*" />
             </label>
             <label class="form__field">
               <span>Telefone do cliente</span>
@@ -414,12 +421,12 @@
               <h2>Cadastro de endereços</h2>
               <p class="muted">Ao deixar campos numéricos em branco, o valor 0 é enviado.</p>
             </div>
-            <button class="btn btn--ghost" data-page-target="dashboardPage">Voltar</button>
+            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
           </div>
           <form id="addressForm" class="form">
             <label class="form__field">
               <span>CEP</span>
-              <input name="cep" inputmode="numeric" pattern="\\d*" maxlength="9" placeholder="Somente números" />
+              <input name="cep" inputmode="numeric" pattern="\d*" maxlength="9" placeholder="Somente números" />
             </label>
             <label class="form__field">
               <span>Rua</span>
@@ -427,7 +434,7 @@
             </label>
             <label class="form__field">
               <span>Número</span>
-              <input name="numero" inputmode="numeric" pattern="\\d*" placeholder="0" />
+              <input name="numero" inputmode="numeric" pattern="\d*" placeholder="0" />
             </label>
             <label class="form__field">
               <span>Bairro</span>
@@ -457,7 +464,7 @@
               <h2>Cadastro de telefones</h2>
               <p class="muted">Vincule um telefone já formatado a um cliente existente.</p>
             </div>
-            <button class="btn btn--ghost" data-page-target="dashboardPage">Voltar</button>
+            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
           </div>
           <form id="phoneForm" class="form">
             <label class="form__field">
@@ -466,11 +473,32 @@
             </label>
             <label class="form__field">
               <span>ID do cliente *</span>
-              <input name="clienteId" required inputmode="numeric" pattern="\\d*" />
+              <input name="clienteId" required inputmode="numeric" pattern="\d*" />
             </label>
             <div class="form__actions">
               <button type="submit" class="btn btn--primary">Salvar telefone</button>
             </div>
+          </form>
+        </section>
+
+        <section class="card card--wide page" id="loginPage" data-page hidden>
+          <div class="card__header card__header--row">
+            <div>
+              <h2>Acesso do time</h2>
+              <p class="muted">Entre para liberar cadastros e dashboards.</p>
+            </div>
+            <div class="pill" id="authStatus">Não autenticado</div>
+          </div>
+          <form id="loginForm" class="form form--inline">
+            <label class="form__field">
+              <span>Email</span>
+              <input type="email" name="email" placeholder="email@exemplo.com" required />
+            </label>
+            <label class="form__field">
+              <span>Senha</span>
+              <input type="password" name="password" placeholder="••••••••" required />
+            </label>
+            <button type="submit" class="btn btn--primary">Entrar</button>
           </form>
         </section>
       </main>
