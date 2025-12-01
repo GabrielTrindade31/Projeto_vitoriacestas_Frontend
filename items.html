@@ -48,13 +48,14 @@
               <h2>Cadastro e monitoramento</h2>
               <p class="muted">Escolha a visualização sem mudar o tamanho da tela. Tudo permanece responsivo.</p>
             </div>
-            <div class="item-actions" style="gap: 12px; flex-wrap: wrap;">
-              <div class="view-toggle" role="tablist" aria-label="Selecionar modo de visualização">
-                <button class="is-active" data-target="tab-register" role="tab" aria-selected="true">Cadastro</button>
-                <button data-target="tab-detail" role="tab" aria-selected="false">Página do item</button>
+              <div class="item-actions" style="gap: 12px; flex-wrap: wrap;">
+                <div class="view-toggle" role="tablist" aria-label="Selecionar modo de visualização">
+                  <button class="is-active" data-target="tab-register" role="tab" aria-selected="true">Cadastro</button>
+                  <button data-target="tab-detail" role="tab" aria-selected="false">Página do item</button>
+                </div>
+                <button class="btn btn--ghost" id="openAlertsModal">Alertas</button>
+                <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
               </div>
-              <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
-            </div>
           </div>
 
           <div id="tab-register" class="tab-panel tab-panel--active">
@@ -111,22 +112,6 @@
               </div>
             </div>
 
-            <div class="card card--muted" style="margin-top: 12px;">
-              <div class="card__header card__header--row">
-                <div>
-                  <p class="hero__eyebrow">Configuração</p>
-                  <h3>Estoque mínimo por item</h3>
-                  <p class="muted">Defina alertas individuais para ser avisado quando um item estiver abaixo do nível seguro.</p>
-                </div>
-                <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
-              </div>
-              <form id="thresholdForm" class="form form--inline">
-                <input name="codigo" placeholder="Código do item" required />
-                <input name="limite" type="number" min="0" placeholder="Estoque mínimo" required />
-                <button class="btn btn--primary" type="submit">Salvar alerta</button>
-              </form>
-              <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
-            </div>
           </div>
 
           <div id="tab-detail" class="tab-panel">
@@ -186,6 +171,27 @@
   </div>
 
   <div id="toast" class="toast" role="status"></div>
+
+  <dialog id="alertsModal" class="modal">
+    <div class="modal__header">
+      <div>
+        <p class="hero__eyebrow">Configuração</p>
+        <h3>Alertas de estoque mínimo</h3>
+        <p class="muted">Crie e pause alertas sem sair da tela atual.</p>
+      </div>
+      <button id="closeAlertsModal" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <form id="thresholdForm" class="form form--inline">
+      <input name="codigo" placeholder="Código do item" required />
+      <input name="limite" type="number" min="0" placeholder="Estoque mínimo" required />
+      <button class="btn btn--primary" type="submit">Salvar alerta</button>
+    </form>
+    <div class="stack__header" style="margin: 12px 0 8px;">
+      <p class="muted">Alertas ativos e pendentes</p>
+      <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
+    </div>
+    <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
+  </dialog>
   <script src="main.js"></script>
 </body>
 </html>

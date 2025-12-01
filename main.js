@@ -66,6 +66,9 @@ const elements = {
   addressForm: document.getElementById('addressForm'),
   phoneForm: document.getElementById('phoneForm'),
   thresholdForm: document.getElementById('thresholdForm'),
+  alertsModal: document.getElementById('alertsModal'),
+  openAlertsModal: document.getElementById('openAlertsModal'),
+  closeAlertsModal: document.getElementById('closeAlertsModal'),
   toast: document.getElementById('toast'),
 };
 
@@ -865,6 +868,21 @@ function addEventListeners() {
     state.alertsPaused = !state.alertsPaused;
     elements.toggleAlerts.textContent = state.alertsPaused ? 'Retomar' : 'Pausar';
   });
+
+  if (elements.alertsModal && elements.openAlertsModal) {
+    elements.openAlertsModal.addEventListener('click', () => elements.alertsModal.showModal());
+    elements.closeAlertsModal?.addEventListener('click', () => elements.alertsModal.close());
+    elements.alertsModal.addEventListener('click', (event) => {
+      const dialog = event.currentTarget;
+      const rect = dialog.getBoundingClientRect();
+      const isOutside =
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom;
+      if (isOutside) dialog.close();
+    });
+  }
 
   attachMask(elements.supplierForm?.querySelector('input[name="cnpj"]'), formatCNPJ);
   attachMask(elements.supplierForm?.querySelector('input[name="telefone"]'), formatPhone);
