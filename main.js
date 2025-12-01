@@ -12,7 +12,6 @@ const chartState = {
 
 const state = {
   token: localStorage.getItem(storageKey),
-  currentPage: 'homePage',
   latestItems: [],
   latestSuppliers: [],
   selectedItem: null,
@@ -66,8 +65,6 @@ const elements = {
   addressForm: document.getElementById('addressForm'),
   phoneForm: document.getElementById('phoneForm'),
   thresholdForm: document.getElementById('thresholdForm'),
-  pages: document.querySelectorAll('[data-page]'),
-  navItems: document.querySelectorAll('.nav__item[data-page-target]'),
   toast: document.getElementById('toast'),
 };
 
@@ -149,17 +146,6 @@ function syncAuthState() {
   }
   if (elements.authToggle) {
     elements.authToggle.textContent = authenticated ? 'Logout' : 'Login';
-  }
-  elements.pages.forEach((page) => {
-    const isPublic = ['homePage', 'loginPage'].includes(page.id);
-    const shouldShow = page.id === state.currentPage && (authenticated || isPublic);
-    page.hidden = !shouldShow;
-  });
-  if (!authenticated && !['homePage', 'loginPage'].includes(state.currentPage)) {
-    state.currentPage = 'homePage';
-    setActivePage('homePage', false);
-    elements.itemsList.textContent = 'Os itens mais recentes aparecem aqui após carregar o painel.';
-    elements.suppliersList.textContent = 'Últimos fornecedores serão exibidos assim que você acessar.';
   }
 }
 
@@ -266,6 +252,7 @@ function renderList(container, items, type) {
 }
 
 function updateSelectedItem(item) {
+  if (!elements.selectedItemName) return;
   state.selectedItem = item || null;
   if (!item) {
     elements.selectedItemName.textContent = 'Selecione um item';
@@ -286,6 +273,7 @@ function updateSelectedItem(item) {
 
 
 function openItemDetail(item) {
+  if (!elements.detailName) return;
   state.detailedItem = item;
   elements.detailName.textContent = item.nome || 'Sem nome';
   elements.detailCode.textContent = item.codigo || 'Código não disponível';
@@ -305,7 +293,6 @@ function openItemDetail(item) {
   } else {
     elements.detailImage.textContent = 'Nenhuma imagem enviada.';
   }
-  setActivePage('itemDetailPage');
 }
 
 
@@ -383,26 +370,6 @@ function buildTrendDataset(items = []) {
       },
     ],
   };
-}
-
-function setActivePage(targetId, warn = true) {
-  const isPublic = ['homePage', 'loginPage'].includes(targetId);
-  if (!state.token && !isPublic) {
-    state.currentPage = 'loginPage';
-    if (warn) showToast('Faça login para navegar pelas páginas protegidas.', 'error');
-  } else {
-    state.currentPage = targetId;
-  }
-  elements.pages.forEach((page) => {
-    const shouldShow = page.id === state.currentPage;
-    const publicPage = ['homePage', 'loginPage'].includes(page.id);
-    page.hidden = !(shouldShow && (state.token || publicPage));
-  });
-  const navKey = state.currentPage === 'itemDetailPage' ? 'itemsPage' : state.currentPage;
-  elements.navItems.forEach((btn) => {
-    const isActive = btn.dataset.pageTarget === navKey;
-    btn.classList.toggle('nav__item--active', isActive);
-  });
 }
 
 function renderKPIs(items = [], alerts = []) {
@@ -493,6 +460,10 @@ function startAlertCron() {
 }
 
 async function loadItems() {
+  if (!state.token) {
+    showToast('Faça login para carregar itens.', 'error');
+    return;
+  }
   try {
     const { data } = await request('/items');
     state.latestItems = data || [];
@@ -506,6 +477,10 @@ async function loadItems() {
 }
 
 async function loadSuppliers() {
+  if (!state.token) {
+    showToast('Faça login para carregar fornecedores.', 'error');
+    return;
+  }
   try {
     const { data } = await request('/suppliers');
     state.latestSuppliers = data || [];
@@ -532,7 +507,7 @@ async function handleLogin(event) {
       setToken(token);
       showToast('Login realizado com sucesso!');
       await Promise.all([loadItems(), loadSuppliers()]);
-      setActivePage('homePage', false);
+      window.location.href = 'index.html';
     } else {
       showToast('Token não retornado pela API.', 'error');
     }
@@ -773,19 +748,19 @@ function exportItemsToExcel(items = state.latestItems, filename = 'estoque.xlsx'
 }
 
 function exportTableFromContext() {
-  switch (state.currentPage) {
-    case 'homePage':
-    case 'itemsPage':
+  const page = document.body.dataset.page || 'home';
+  switch (page) {
+    case 'home':
       exportItemsToExcel(state.latestItems, 'estoque.xlsx');
       break;
-    case 'itemDetailPage':
+    case 'items':
       if (state.detailedItem) {
         exportItemsToExcel([state.detailedItem], `${state.detailedItem.codigo || 'item'}.xlsx`);
       } else {
-        showToast('Abra um item para exportar.', 'error');
+        exportItemsToExcel(state.latestItems, 'estoque.xlsx');
       }
       break;
-    case 'suppliersPage': {
+    case 'suppliers': {
       if (!state.latestSuppliers.length) {
         showToast('Nenhum fornecedor carregado para exportar.', 'error');
         break;
@@ -813,63 +788,49 @@ function exportTableFromContext() {
 }
 
 function addEventListeners() {
-  if (elements.docsBtn) {
-    elements.docsBtn.addEventListener('click', exportTableFromContext);
-  }
-
-  if (elements.docsBtnHeader) {
-    elements.docsBtnHeader.addEventListener('click', exportTableFromContext);
-  }
+  elements.docsBtn?.addEventListener('click', exportTableFromContext);
+  elements.docsBtnHeader?.addEventListener('click', exportTableFromContext);
 
   if (elements.authToggle) {
     elements.authToggle.addEventListener('click', () => {
       if (state.token) {
         setToken(null);
-        state.currentPage = 'homePage';
-        setActivePage('homePage', false);
         showToast('Sessão encerrada.');
+        window.location.href = 'index.html';
       } else {
-        setActivePage('loginPage', false);
+        window.location.href = 'login.html';
       }
     });
   }
 
-  elements.loginForm.addEventListener('submit', handleLogin);
-  elements.refreshItems.addEventListener('click', loadItems);
-  elements.refreshSuppliers.addEventListener('click', loadSuppliers);
+  elements.loginForm?.addEventListener('submit', handleLogin);
+  elements.refreshItems?.addEventListener('click', loadItems);
+  elements.refreshSuppliers?.addEventListener('click', loadSuppliers);
 
-  elements.itemForm.addEventListener('submit', handleItemSubmit);
-  elements.itemImage.addEventListener('change', handleImagePreview);
-  elements.exportItems.addEventListener('click', () => exportItemsToExcel());
-  if (elements.exportDetail) {
-    elements.exportDetail.addEventListener('click', () => exportTableFromContext());
-  }
-  elements.supplierForm.addEventListener('submit', handleSupplierSubmit);
-  elements.customerForm.addEventListener('submit', handleCustomerSubmit);
-  elements.addressForm.addEventListener('submit', handleAddressSubmit);
-  elements.phoneForm.addEventListener('submit', handlePhoneSubmit);
-  elements.thresholdForm.addEventListener('submit', handleThresholdSubmit);
-
-  document.querySelectorAll('[data-page-target]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      setActivePage(btn.dataset.pageTarget);
-    });
-  });
+  elements.itemForm?.addEventListener('submit', handleItemSubmit);
+  elements.itemImage?.addEventListener('change', handleImagePreview);
+  elements.exportItems?.addEventListener('click', () => exportItemsToExcel());
+  elements.exportDetail?.addEventListener('click', () => exportTableFromContext());
+  elements.supplierForm?.addEventListener('submit', handleSupplierSubmit);
+  elements.customerForm?.addEventListener('submit', handleCustomerSubmit);
+  elements.addressForm?.addEventListener('submit', handleAddressSubmit);
+  elements.phoneForm?.addEventListener('submit', handlePhoneSubmit);
+  elements.thresholdForm?.addEventListener('submit', handleThresholdSubmit);
 
   document.querySelectorAll('[data-export]').forEach((btn) => {
     btn.addEventListener('click', handleExportClick);
   });
 
-  elements.toggleAlerts.addEventListener('click', () => {
+  elements.toggleAlerts?.addEventListener('click', () => {
     state.alertsPaused = !state.alertsPaused;
     elements.toggleAlerts.textContent = state.alertsPaused ? 'Retomar' : 'Pausar';
   });
 
-  attachMask(document.querySelector('#suppliersPage input[name="cnpj"]'), formatCNPJ);
-  attachMask(document.querySelector('#suppliersPage input[name="telefone"]'), formatPhone);
-  attachMask(document.querySelector('#customersPage input[name="cnpj"]'), formatCNPJ);
-  attachMask(document.querySelector('#customersPage input[name="telefone"]'), formatPhone);
-  attachMask(document.querySelector('#phonesPage input[name="numero"]'), formatPhone);
+  attachMask(elements.supplierForm?.querySelector('input[name="cnpj"]'), formatCNPJ);
+  attachMask(elements.supplierForm?.querySelector('input[name="telefone"]'), formatPhone);
+  attachMask(elements.customerForm?.querySelector('input[name="cnpj"]'), formatCNPJ);
+  attachMask(elements.customerForm?.querySelector('input[name="telefone"]'), formatPhone);
+  attachMask(elements.phoneForm?.querySelector('input[name="numero"]'), formatPhone);
 }
 
 function init() {
@@ -877,9 +838,12 @@ function init() {
   setupVisualizationLazyLoad();
   syncAuthState();
   if (state.token) {
-    loadItems();
-    loadSuppliers();
-    setActivePage(state.currentPage);
+    if (elements.itemsList || elements.itemsBoard) {
+      loadItems();
+    }
+    if (elements.suppliersList) {
+      loadSuppliers();
+    }
   }
 }
 

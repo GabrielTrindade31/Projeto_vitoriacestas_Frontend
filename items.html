@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitória Cestas | Itens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-page="items">
+  <div class="app-frame">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand-dot"></div>
+        <div>
+          <strong>Vitória Cestas</strong>
+          <small>Backoffice</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <a class="nav__item" href="index.html"><span>Início</span></a>
+        <a class="nav__item nav__item--active" href="items.html"><span>Itens</span></a>
+        <a class="nav__item" href="suppliers.html"><span>Fornecedores</span></a>
+        <a class="nav__item" href="customers.html"><span>Clientes</span></a>
+        <a class="nav__item" href="addresses.html"><span>Endereços</span></a>
+        <a class="nav__item" href="phones.html"><span>Telefones</span></a>
+      </nav>
+      <div class="sidebar__cta">
+        <p>Exportar tabela</p>
+        <button id="docsBtn" class="btn btn--ghost">Gerar .xlsx</button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <div class="topbar">
+        <span class="topbar__hint">Cadastre itens, faça upload de imagens e exporte para Excel.</span>
+        <button id="authToggle" class="btn btn--ghost">Login</button>
+      </div>
+
+      <main class="layout">
+        <section class="card card--wide">
+          <div class="card__header card__header--row">
+            <div>
+              <p class="hero__eyebrow">Dashboard por item</p>
+              <h2>Cadastro e monitoramento</h2>
+              <p class="muted">Envie imagens via blob, exporte o estoque para Excel e acompanhe o status de cada item.</p>
+            </div>
+            <div class="item-actions">
+              <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
+              <a class="btn btn--ghost" href="index.html">Voltar</a>
+            </div>
+          </div>
+
+          <div class="item-grid">
+            <form id="itemForm" class="form">
+              <h3>Cadastro de item</h3>
+              <div class="form__grid">
+                <label>
+                  Código
+                  <input name="codigo" required placeholder="Ex: CX-001" />
+                </label>
+                <label>
+                  Nome
+                  <input name="nome" required placeholder="Cesta Básica" />
+                </label>
+                <label>
+                  Quantidade
+                  <input name="quantidade" type="number" min="0" required />
+                </label>
+                <label>
+                  Preço
+                  <input name="preco" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  Categoria
+                  <input name="categoria" placeholder="Básicos" />
+                </label>
+                <label>
+                  Fornecedor ID
+                  <input name="fornecedorId" type="number" min="1" placeholder="Opcional" />
+                </label>
+                <label class="form__full">
+                  Descrição
+                  <textarea name="descricao" rows="2" placeholder="Notas rápidas do item"></textarea>
+                </label>
+                <label class="form__full">
+                  Imagem (opcional)
+                  <input id="itemImage" type="file" accept="image/*" />
+                </label>
+                <div id="itemImagePreview" class="image-preview">Nenhuma imagem selecionada.</div>
+              </div>
+              <button class="btn btn--primary" type="submit">Salvar item</button>
+            </form>
+
+            <div class="stack">
+              <div class="stack__header">
+                <div>
+                  <p class="hero__eyebrow">Itens carregados</p>
+                  <h3 id="itemsCount">0</h3>
+                </div>
+                <button class="btn btn--ghost" id="refreshItems">Atualizar</button>
+              </div>
+              <div id="itemsBoard" class="list list--wide">Nenhum item carregado.</div>
+            </div>
+          </div>
+
+          <section class="card card--wide card--muted">
+            <div class="card__header card__header--row">
+              <div>
+                <p class="hero__eyebrow">Configuração</p>
+                <h3>Estoque mínimo por item</h3>
+                <p class="muted">Defina alertas individuais para ser avisado quando um item estiver abaixo do nível seguro.</p>
+              </div>
+              <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
+            </div>
+            <form id="thresholdForm" class="form form--inline">
+              <input name="codigo" placeholder="Código do item" required />
+              <input name="limite" type="number" min="0" placeholder="Estoque mínimo" required />
+              <button class="btn btn--primary" type="submit">Salvar alerta</button>
+            </form>
+            <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
+          </section>
+        </section>
+
+        <section class="card card--wide">
+          <div class="card__header card__header--row">
+            <div>
+              <p class="hero__eyebrow">Detalhe</p>
+              <h2>Página do item</h2>
+              <p class="muted">Abra um item e veja totais, preço e imagem enviada.</p>
+            </div>
+            <button class="btn btn--ghost" id="exportDetail">Exportar tabela atual</button>
+          </div>
+
+          <div class="item-detail" id="itemDetail">
+            <div class="item-detail__main">
+              <p class="muted">Selecione um item na lista para ver o detalhe.</p>
+              <div class="item-detail__grid">
+                <div>
+                  <p class="hero__eyebrow">Nome</p>
+                  <h3 id="detailName">–</h3>
+                </div>
+                <div>
+                  <p class="hero__eyebrow">Código</p>
+                  <h3 id="detailCode">–</h3>
+                </div>
+                <div>
+                  <p class="hero__eyebrow">Quantidade</p>
+                  <h3 id="detailQtd">–</h3>
+                </div>
+                <div>
+                  <p class="hero__eyebrow">Preço</p>
+                  <h3 id="detailPrice">–</h3>
+                </div>
+                <div>
+                  <p class="hero__eyebrow">Total</p>
+                  <h3 id="detailTotal">–</h3>
+                </div>
+                <div>
+                  <p class="hero__eyebrow">Categoria</p>
+                  <h3 id="detailCategory">–</h3>
+                </div>
+              </div>
+              <div>
+                <p class="hero__eyebrow">Descrição</p>
+                <p id="detailDescription" class="muted">Nenhuma descrição.</p>
+              </div>
+            </div>
+            <div class="item-detail__image" id="detailImage">Nenhuma imagem enviada.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="main.js"></script>
+</body>
+</html>

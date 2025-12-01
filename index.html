@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vitória Cestas | Estoque</title>
+  <title>Vitória Cestas | Início</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body data-page="home">
   <div class="app-frame">
     <aside class="sidebar">
       <div class="sidebar__brand">
@@ -21,24 +21,24 @@
         </div>
       </div>
       <nav class="nav">
-        <button class="nav__item nav__item--active" data-page-target="homePage">
+        <a class="nav__item nav__item--active" href="index.html">
           <span>Início</span>
-        </button>
-        <button class="nav__item" data-page-target="itemsPage">
+        </a>
+        <a class="nav__item" href="items.html">
           <span>Itens</span>
-        </button>
-        <button class="nav__item" data-page-target="suppliersPage">
+        </a>
+        <a class="nav__item" href="suppliers.html">
           <span>Fornecedores</span>
-        </button>
-        <button class="nav__item" data-page-target="customersPage">
+        </a>
+        <a class="nav__item" href="customers.html">
           <span>Clientes</span>
-        </button>
-        <button class="nav__item" data-page-target="addressesPage">
+        </a>
+        <a class="nav__item" href="addresses.html">
           <span>Endereços</span>
-        </button>
-        <button class="nav__item" data-page-target="phonesPage">
+        </a>
+        <a class="nav__item" href="phones.html">
           <span>Telefones</span>
-        </button>
+        </a>
       </nav>
       <div class="sidebar__cta">
         <p>Exportar tabela</p>
@@ -48,7 +48,7 @@
 
     <div class="workspace">
       <div class="topbar">
-        <span class="topbar__hint">Bem-vindo! Navegue pelo menu ou veja os últimos itens.</span>
+        <span class="topbar__hint">Bem-vindo! Veja como o sistema funciona e navegue pelas páginas.</span>
         <button id="authToggle" class="btn btn--ghost">Login</button>
       </div>
       <header class="hero">
@@ -56,18 +56,18 @@
           <p class="hero__eyebrow">Como funciona</p>
           <h1>Organize o estoque em minutos</h1>
           <p class="hero__lead">
-            Cadastre itens, fornecedores e clientes em um só lugar. Cada item abre em sua própria página com dashboard, exportação para Excel e upload de imagens via blob.
+            Cadastre itens, fornecedores e clientes em páginas dedicadas. Cada item abre em sua própria tela com dashboard, exportação para Excel e upload de imagens via blob.
           </p>
           <div class="hero__actions">
             <button id="docsBtnHeader" class="btn btn--ghost">Baixar tabela atual</button>
           </div>
-          <p class="hero__hint">Últimas inclusões aparecem no painel principal. O login fica no canto superior direito.</p>
+          <p class="hero__hint">As últimas inclusões aparecem abaixo. O login fica no canto superior direito.</p>
         </div>
         <div class="hero__panel">
           <p class="hero__panel-title">Destaques rápidos</p>
           <ol>
-            <li>Menu lateral simplifica a navegação entre cadastros.</li>
-            <li>Cada item abre em tela dedicada com total, preço e imagem.</li>
+            <li>Menu lateral em verde-água para navegar entre cadastros.</li>
+            <li>Itens abrem em tela própria com totais, preço e imagem.</li>
             <li>Exportação direta da tabela visível para Excel/CSV.</li>
             <li>Upload de imagem em blob (Data URL) junto ao item.</li>
           </ol>
@@ -75,7 +75,7 @@
       </header>
 
       <main class="layout">
-        <section class="card card--wide page" id="homePage" data-page>
+        <section class="card card--wide">
           <div class="card__header card__header--row">
             <div>
               <h2>Painel principal</h2>
@@ -168,345 +168,27 @@
             <div class="cta">
               <div>
                 <p class="cta__eyebrow">Cadastro rápido</p>
-                <h3>Acesse a página de itens</h3>
+                <h3>Página de itens</h3>
                 <p>Cadastre código, nome, quantidade e preço. Se quiser, já inclua descrição, categoria e imagem.</p>
               </div>
-              <button class="btn btn--primary" data-page-target="itemsPage">Abrir</button>
+              <a class="btn btn--primary" href="items.html">Abrir</a>
             </div>
 
             <div class="cta">
               <div>
                 <p class="cta__eyebrow">Cadastro rápido</p>
-                <h3>Acesse a página de fornecedores</h3>
+                <h3>Página de fornecedores</h3>
                 <p>Cadastre CNPJ, razão social, nome do fornecedor (contato), email e telefone com validação de números.</p>
               </div>
-              <button class="btn btn--primary" data-page-target="suppliersPage">Abrir</button>
+              <a class="btn btn--primary" href="suppliers.html">Abrir</a>
             </div>
           </div>
-        </section>
-
-        <section class="card card--wide page" id="itemsPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <p class="hero__eyebrow">Dashboard por item</p>
-              <h2>Cadastro e monitoramento</h2>
-              <p class="muted">Envie imagens via blob, exporte o estoque para Excel e acompanhe o status de cada item.</p>
-            </div>
-            <div class="item-actions">
-              <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
-              <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
-            </div>
-          </div>
-          <div class="item-grid">
-            <form id="itemForm" class="form item-form">
-              <div class="form__row">
-                <label class="form__field">
-                  <span>Código *</span>
-                  <input name="codigo" required />
-                </label>
-                <label class="form__field">
-                  <span>Nome *</span>
-                  <input name="nome" required />
-                </label>
-              </div>
-              <label class="form__field">
-                <span>Descrição</span>
-                <textarea name="descricao" rows="2"></textarea>
-              </label>
-              <div class="form__row">
-                <label class="form__field">
-                  <span>Categoria</span>
-                  <input name="categoria" />
-                </label>
-                <label class="form__field">
-                  <span>ID do fornecedor (opcional)</span>
-                  <input name="fornecedorId" inputmode="numeric" pattern="\d*" />
-                </label>
-              </div>
-              <div class="form__row">
-                <label class="form__field">
-                  <span>Quantidade *</span>
-                  <input type="number" name="quantidade" min="0" step="1" required />
-                </label>
-                <label class="form__field">
-                  <span>Preço *</span>
-                  <input type="number" name="preco" min="0" step="0.01" required />
-                </label>
-              </div>
-              <label class="form__field file-field">
-                <span>Imagem do item (PNG/JPG)</span>
-                <input type="file" accept="image/*" id="itemImage" />
-                <small class="muted">O arquivo é convertido em blob (Data URL) e enviado junto ao payload.</small>
-              </label>
-              <div class="image-preview" id="itemImagePreview">Nenhuma imagem anexada.</div>
-              <div class="form__actions">
-                <button type="submit" class="btn btn--primary">Salvar item</button>
-              </div>
-            </form>
-
-            <div class="item-dashboard">
-              <div class="item-dashboard__header">
-                <div>
-                  <p class="hero__eyebrow">Resumo</p>
-                  <h3 id="selectedItemName">Selecione um item</h3>
-                  <p class="muted" id="selectedItemCode">Nenhum código carregado</p>
-                </div>
-              </div>
-              <div class="kpi-grid kpi-grid--tight">
-                <div class="kpi-card">
-                  <p class="kpi-card__label">Quantidade</p>
-                  <h3 id="selectedItemQtd">–</h3>
-                  <p class="muted">Saldo registrado</p>
-                </div>
-                <div class="kpi-card">
-                  <p class="kpi-card__label">Preço</p>
-                  <h3 id="selectedItemPrice">–</h3>
-                  <p class="muted">Último valor salvo</p>
-                </div>
-                <div class="kpi-card kpi-card--alert">
-                  <p class="kpi-card__label">Total</p>
-                  <h3 id="selectedItemTotal">–</h3>
-                  <p class="muted">Qtd x Preço</p>
-                </div>
-              </div>
-              <div class="stack">
-                <div class="stack__header">
-                  <h4>Itens cadastrados</h4>
-                  <span class="badge" id="itemsCount">0</span>
-                </div>
-                <div id="itemsBoard" class="list list--cards">Nenhum item carregado.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card__header card__header--row">
-            <div>
-              <h3>Estoque mínimo</h3>
-              <p class="muted">Configure alertas por item. Valores ficam salvos no navegador.</p>
-            </div>
-          </div>
-          <form id="thresholdForm" class="form form--inline">
-            <label class="form__field">
-              <span>Código do item</span>
-              <input name="codigo" required />
-            </label>
-            <label class="form__field">
-              <span>Quantidade mínima</span>
-              <input type="number" name="minimo" min="0" step="1" required />
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" name="habilitado" checked />
-              <span>Habilitar alerta</span>
-            </label>
-            <button type="submit" class="btn btn--primary">Salvar limite</button>
-          </form>
-        </section>
-
-        <section class="card card--wide page" id="itemDetailPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <p class="hero__eyebrow">Página do item</p>
-              <h2 id="detailName">Selecione um item</h2>
-              <p class="muted" id="detailCode">Código não disponível</p>
-            </div>
-            <div class="item-actions">
-              <button class="btn btn--ghost" data-page-target="itemsPage">Voltar para itens</button>
-              <button class="btn btn--ghost" id="exportDetail">Baixar .xlsx</button>
-            </div>
-          </div>
-          <div class="detail-grid">
-            <div class="detail-card">
-              <p class="muted">Estoque</p>
-              <h3 id="detailQtd">–</h3>
-              <p class="muted">Preço</p>
-              <h4 id="detailPrice">–</h4>
-              <p class="muted">Total</p>
-              <h4 id="detailTotal">–</h4>
-            </div>
-            <div class="detail-card">
-              <p class="muted">Categoria</p>
-              <h4 id="detailCategory">–</h4>
-              <p class="muted">Descrição</p>
-              <p id="detailDescription">–</p>
-            </div>
-            <div class="detail-card detail-card--image" id="detailImage">Nenhuma imagem enviada.</div>
-          </div>
-        </section>
-
-        <section class="card card--wide page" id="suppliersPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Cadastro de fornecedores</h2>
-              <p class="muted">Campos numéricos aceitam apenas dígitos; IDs vazios são enviados como 0.</p>
-            </div>
-            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
-          </div>
-          <form id="supplierForm" class="form">
-            <label class="form__field">
-              <span>CNPJ *</span>
-              <input name="cnpj" required maxlength="18" inputmode="numeric" autocomplete="on" />
-            </label>
-            <label class="form__field">
-              <span>Razão social *</span>
-              <input name="razaoSocial" required />
-            </label>
-            <label class="form__field">
-              <span>Nome do fornecedor (contato) *</span>
-              <input name="contato" required />
-            </label>
-            <label class="form__field">
-              <span>Email *</span>
-              <input type="email" name="email" required />
-            </label>
-            <label class="form__field">
-              <span>Telefone *</span>
-              <input name="telefone" required placeholder="(00) 00000-0000" maxlength="15" inputmode="numeric" />
-            </label>
-            <label class="form__field">
-              <span>ID do endereço (opcional)</span>
-              <input name="enderecoId" inputmode="numeric" pattern="\d*" placeholder="0" />
-            </label>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary">Salvar fornecedor</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card card--wide page" id="customersPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Cadastro de clientes</h2>
-              <p class="muted">Nome, data de nascimento e endereço são obrigatórios. Telefones aceitam apenas números.</p>
-            </div>
-            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
-          </div>
-          <form id="customerForm" class="form">
-            <label class="form__field">
-              <span>Nome *</span>
-              <input name="nome" required />
-            </label>
-            <label class="form__field">
-              <span>CPF</span>
-              <input name="cpf" inputmode="numeric" pattern="\d*" maxlength="14" placeholder="Somente números" />
-            </label>
-            <label class="form__field">
-              <span>CNPJ</span>
-              <input name="cnpj" inputmode="numeric" pattern="\d*" maxlength="18" placeholder="Somente números" />
-            </label>
-            <label class="form__field">
-              <span>Email</span>
-              <input type="email" name="email" placeholder="Opcional" />
-            </label>
-            <label class="form__field">
-              <span>Data de nascimento *</span>
-              <input type="date" name="dataNascimento" required />
-            </label>
-            <label class="form__field">
-              <span>ID do endereço *</span>
-              <input name="enderecoId" required inputmode="numeric" pattern="\d*" />
-            </label>
-            <label class="form__field">
-              <span>Telefone do cliente</span>
-              <input name="telefone" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000" />
-            </label>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary">Salvar cliente</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card card--wide page" id="addressesPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Cadastro de endereços</h2>
-              <p class="muted">Ao deixar campos numéricos em branco, o valor 0 é enviado.</p>
-            </div>
-            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
-          </div>
-          <form id="addressForm" class="form">
-            <label class="form__field">
-              <span>CEP</span>
-              <input name="cep" inputmode="numeric" pattern="\d*" maxlength="9" placeholder="Somente números" />
-            </label>
-            <label class="form__field">
-              <span>Rua</span>
-              <input name="rua" />
-            </label>
-            <label class="form__field">
-              <span>Número</span>
-              <input name="numero" inputmode="numeric" pattern="\d*" placeholder="0" />
-            </label>
-            <label class="form__field">
-              <span>Bairro</span>
-              <input name="bairro" />
-            </label>
-            <label class="form__field">
-              <span>Cidade</span>
-              <input name="cidade" />
-            </label>
-            <label class="form__field">
-              <span>Estado</span>
-              <input name="estado" maxlength="2" placeholder="UF" />
-            </label>
-            <label class="form__field">
-              <span>Complemento</span>
-              <input name="complemento" />
-            </label>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary">Salvar endereço</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card card--wide page" id="phonesPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Cadastro de telefones</h2>
-              <p class="muted">Vincule um telefone já formatado a um cliente existente.</p>
-            </div>
-            <button class="btn btn--ghost" data-page-target="homePage">Voltar</button>
-          </div>
-          <form id="phoneForm" class="form">
-            <label class="form__field">
-              <span>Telefone *</span>
-              <input name="numero" required inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000" />
-            </label>
-            <label class="form__field">
-              <span>ID do cliente *</span>
-              <input name="clienteId" required inputmode="numeric" pattern="\d*" />
-            </label>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary">Salvar telefone</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card card--wide page" id="loginPage" data-page hidden>
-          <div class="card__header card__header--row">
-            <div>
-              <h2>Acesso do time</h2>
-              <p class="muted">Entre para liberar cadastros e dashboards.</p>
-            </div>
-            <div class="pill" id="authStatus">Não autenticado</div>
-          </div>
-          <form id="loginForm" class="form form--inline">
-            <label class="form__field">
-              <span>Email</span>
-              <input type="email" name="email" placeholder="email@exemplo.com" required />
-            </label>
-            <label class="form__field">
-              <span>Senha</span>
-              <input type="password" name="password" placeholder="••••••••" required />
-            </label>
-            <button type="submit" class="btn btn--primary">Entrar</button>
-          </form>
         </section>
       </main>
     </div>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
+  <div id="toast" class="toast" role="status"></div>
   <script src="main.js"></script>
 </body>
 </html>

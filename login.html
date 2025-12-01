@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitória Cestas | Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="login">
+  <div class="app-frame">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand-dot"></div>
+        <div>
+          <strong>Vitória Cestas</strong>
+          <small>Backoffice</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <a class="nav__item" href="index.html"><span>Início</span></a>
+        <a class="nav__item" href="items.html"><span>Itens</span></a>
+        <a class="nav__item" href="suppliers.html"><span>Fornecedores</span></a>
+        <a class="nav__item" href="customers.html"><span>Clientes</span></a>
+        <a class="nav__item" href="addresses.html"><span>Endereços</span></a>
+        <a class="nav__item" href="phones.html"><span>Telefones</span></a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <div class="topbar">
+        <span class="topbar__hint">Acesse para habilitar as ações protegidas.</span>
+        <a class="btn btn--ghost" href="index.html">Voltar</a>
+      </div>
+
+      <main class="layout">
+        <section class="card card--wide">
+          <div class="card__header card__header--row">
+            <div>
+              <p class="hero__eyebrow">Acesso</p>
+              <h2>Login</h2>
+              <p class="muted">Informe suas credenciais para continuar.</p>
+            </div>
+          </div>
+
+          <form id="loginForm" class="form form--compact">
+            <label>
+              Email
+              <input name="email" type="email" required placeholder="usuario@dominio.com" />
+            </label>
+            <label>
+              Senha
+              <input name="password" type="password" required placeholder="********" />
+            </label>
+            <button class="btn btn--primary" type="submit">Entrar</button>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="main.js"></script>
+</body>
+</html>
