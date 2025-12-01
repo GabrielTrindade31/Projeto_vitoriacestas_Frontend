@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header class="hero">
@@ -95,6 +96,69 @@
         </div>
       </div>
 
+      <section class="dashboard-visuals" id="dashboardVisuals">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <p class="kpi-card__label">Itens cadastrados</p>
+            <h3 id="kpiItemsTotal">–</h3>
+            <p class="muted">Contagem total após autenticação</p>
+          </div>
+          <div class="kpi-card">
+            <p class="kpi-card__label">Valor potencial</p>
+            <h3 id="kpiTotalValue">–</h3>
+            <p class="muted">Soma de quantidade x preço</p>
+          </div>
+          <div class="kpi-card kpi-card--alert">
+            <p class="kpi-card__label">Alertas ativos</p>
+            <h3 id="kpiAlertsCount">–</h3>
+            <p class="muted">Itens abaixo do estoque mínimo</p>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-card__header">
+              <div>
+                <p class="chart-card__eyebrow">Visualização</p>
+                <h3>Estoque por categoria</h3>
+              </div>
+              <div class="chart-card__actions">
+                <button class="btn btn--ghost" data-export="stockByCategory" data-format="png">Exportar PNG</button>
+                <button class="btn btn--ghost" data-export="stockByCategory" data-format="csv">Exportar CSV</button>
+              </div>
+            </div>
+            <canvas id="stockByCategory" height="240" aria-label="Gráfico de barras de estoque por categoria"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-card__header">
+              <div>
+                <p class="chart-card__eyebrow">Tendência</p>
+                <h3>Movimentação simulada</h3>
+              </div>
+              <div class="chart-card__actions">
+                <button class="btn btn--ghost" data-export="stockTrend" data-format="png">Exportar PNG</button>
+                <button class="btn btn--ghost" data-export="stockTrend" data-format="csv">Exportar CSV</button>
+              </div>
+            </div>
+            <canvas id="stockTrend" height="240" aria-label="Gráfico de linha de tendência de estoque"></canvas>
+          </div>
+
+          <div class="chart-card chart-card--alerts">
+            <div class="chart-card__header">
+              <div>
+                <p class="chart-card__eyebrow">Alertas</p>
+                <h3>Estoque mínimo</h3>
+              </div>
+              <div class="chart-card__actions">
+                <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
+              </div>
+            </div>
+            <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
+          </div>
+        </div>
+      </section>
+
       <div class="grid grid--cta">
         <div class="cta">
           <div>
@@ -156,6 +220,28 @@
         <div class="form__actions">
           <button type="submit" class="btn btn--primary">Salvar item</button>
         </div>
+      </form>
+
+      <div class="card__header card__header--row">
+        <div>
+          <h3>Estoque mínimo</h3>
+          <p class="muted">Configure alertas por item. Valores ficam salvos no navegador.</p>
+        </div>
+      </div>
+      <form id="thresholdForm" class="form form--inline">
+        <label class="form__field">
+          <span>Código do item</span>
+          <input name="codigo" required />
+        </label>
+        <label class="form__field">
+          <span>Quantidade mínima</span>
+          <input type="number" name="minimo" min="0" step="1" required />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="habilitado" checked />
+          <span>Habilitar alerta</span>
+        </label>
+        <button type="submit" class="btn btn--primary">Salvar limite</button>
       </form>
     </section>
 

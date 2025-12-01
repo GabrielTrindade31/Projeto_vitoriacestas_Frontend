@@ -5,10 +5,19 @@ const API_BASE =
     : 'https://projeto-vitoriacestas-backend.vercel.app/api');
 const DOCS_URL = `${API_BASE.replace(/\/api$/, '')}/docs`;
 const storageKey = 'vitoriacestas_token';
+const thresholdStorageKey = 'vitoriacestas_thresholds';
+
+const chartState = {
+  charts: {},
+};
 
 const state = {
   token: localStorage.getItem(storageKey),
   currentPage: 'dashboardPage',
+  latestItems: [],
+  alertsPaused: false,
+  visualsVisible: false,
+  lastAlertHash: '',
 };
 
 const elements = {
@@ -22,16 +31,27 @@ const elements = {
   suppliersList: document.getElementById('suppliersList'),
   refreshItems: document.getElementById('refreshItems'),
   refreshSuppliers: document.getElementById('refreshSuppliers'),
+  dashboardVisuals: document.getElementById('dashboardVisuals'),
+  stockByCategory: document.getElementById('stockByCategory'),
+  stockTrend: document.getElementById('stockTrend'),
+  kpiItemsTotal: document.getElementById('kpiItemsTotal'),
+  kpiTotalValue: document.getElementById('kpiTotalValue'),
+  kpiAlertsCount: document.getElementById('kpiAlertsCount'),
+  alertsList: document.getElementById('alertsList'),
+  toggleAlerts: document.getElementById('toggleAlerts'),
   itemForm: document.getElementById('itemForm'),
   supplierForm: document.getElementById('supplierForm'),
   customerForm: document.getElementById('customerForm'),
   addressForm: document.getElementById('addressForm'),
   phoneForm: document.getElementById('phoneForm'),
+  thresholdForm: document.getElementById('thresholdForm'),
   logoutBtn: document.getElementById('logoutBtn'),
   pages: document.querySelectorAll('[data-page]'),
   pageTabs: document.querySelectorAll('.tabs__btn[data-page-target]'),
   toast: document.getElementById('toast'),
 };
+
+let alertIntervalId;
 
 function onlyDigits(value = '') {
   return value.replace(/\D/g, '');
@@ -60,6 +80,18 @@ function attachMask(input, formatter) {
   });
 }
 
+function getThresholds() {
+  try {
+    return JSON.parse(localStorage.getItem(thresholdStorageKey) || '{}');
+  } catch (err) {
+    return {};
+  }
+}
+
+function saveThresholds(thresholds) {
+  localStorage.setItem(thresholdStorageKey, JSON.stringify(thresholds));
+}
+
 function showToast(message, type = 'info') {
   elements.toast.textContent = message;
   elements.toast.style.borderColor = type === 'error' ? '#ef4444' : '#1f2937';
@@ -73,6 +105,7 @@ function setToken(token) {
     localStorage.setItem(storageKey, token);
   } else {
     localStorage.removeItem(storageKey);
+    if (alertIntervalId) clearInterval(alertIntervalId);
   }
   syncAuthState();
 }
@@ -114,6 +147,69 @@ async function request(path, options = {}) {
   return data;
 }
 
+function createChartOptions(overrides = {}) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    parsing: false,
+    plugins: {
+      legend: { display: true },
+      decimation: { enabled: true, algorithm: 'lttb', samples: 200 },
+      tooltip: { mode: 'index' },
+    },
+    ...overrides,
+  };
+}
+
+const chartManager = {
+  render(id, type, data, options = {}) {
+    const ctx = elements[id];
+    if (!ctx || typeof Chart === 'undefined') return;
+    if (chartState.charts[id]) {
+      chartState.charts[id].data = data;
+      chartState.charts[id].options = { ...chartState.charts[id].options, ...options };
+      chartState.charts[id].update();
+      return;
+    }
+    chartState.charts[id] = new Chart(ctx, {
+      type,
+      data,
+      options: createChartOptions(options),
+    });
+  },
+
+  export(id, format = 'png') {
+    const chart = chartState.charts[id];
+    if (!chart) return;
+    if (format === 'png') {
+      const link = document.createElement('a');
+      link.href = chart.toBase64Image();
+      link.download = `${id}.png`;
+      link.click();
+    }
+    if (format === 'csv') {
+      const rows = [];
+      const labels = chart.data.labels || [];
+      (chart.data.datasets || []).forEach((ds) => {
+        rows.push(['Label', ds.label || 'Série']);
+        labels.forEach((label, idx) => {
+          rows.push([label, ds.data?.[idx] ?? '']);
+        });
+        rows.push([]);
+      });
+      const csv = rows.map((r) => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${id}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  },
+};
+
 function renderList(container, items, type) {
   if (!items || items.length === 0) {
     container.textContent = 'Nenhum registro encontrado.';
@@ -133,6 +229,51 @@ function renderList(container, items, type) {
   });
 }
 
+function buildCategoryDataset(items = []) {
+  const buckets = {};
+  items.forEach((item) => {
+    const categoria = item.categoria || 'Sem categoria';
+    const quantidade = Number(item.quantidade) || 0;
+    buckets[categoria] = (buckets[categoria] || 0) + quantidade;
+  });
+  const labels = Object.keys(buckets);
+  const data = labels.map((label) => buckets[label]);
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Quantidade',
+        data,
+        backgroundColor: labels.map((_, idx) => `hsl(${(idx * 45) % 360} 65% 48%)`),
+      },
+    ],
+  };
+}
+
+function buildTrendDataset(items = []) {
+  const base = items.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
+  const points = 24;
+  const series = Array.from({ length: points }, (_, idx) => {
+    const noise = Math.sin(idx / 3) * 6;
+    const variance = (idx * 3) % 10;
+    return Math.max(base + noise * variance - idx, 0);
+  });
+  const labels = Array.from({ length: points }, (_, idx) => `T${idx + 1}`);
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Saldo simulado',
+        data: series,
+        borderColor: '#0f9d58',
+        backgroundColor: 'rgba(15, 183, 161, 0.24)',
+        fill: true,
+        tension: 0.35,
+      },
+    ],
+  };
+}
+
 function setActivePage(targetId) {
   if (!state.token) {
     showToast('Faça login para navegar pelas páginas protegidas.', 'error');
@@ -148,10 +289,100 @@ function setActivePage(targetId) {
   });
 }
 
+function renderKPIs(items = [], alerts = []) {
+  elements.kpiItemsTotal.textContent = items.length;
+  const totalValue = items.reduce(
+    (acc, item) => acc + (Number(item.quantidade) || 0) * (Number(item.preco) || 0),
+    0,
+  );
+  elements.kpiTotalValue.textContent = `R$ ${totalValue.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  elements.kpiAlertsCount.textContent = alerts.length;
+}
+
+function renderAlerts(alerts = []) {
+  if (!alerts.length) {
+    elements.alertsList.textContent = 'Nenhum alerta pendente.';
+    renderKPIs(state.latestItems, alerts);
+    return;
+  }
+  elements.alertsList.innerHTML = '';
+  alerts.forEach((alert) => {
+    const row = document.createElement('div');
+    row.className = 'alert-item';
+    row.innerHTML = `
+      <div class="alert-item__meta">
+        <strong>${alert.nome || alert.codigo}</strong>
+        <span class="muted">Qtd atual: ${alert.quantidade} • Mínimo: ${alert.minimo}</span>
+      </div>
+      <span class="badge">${alert.codigo}</span>
+    `;
+    elements.alertsList.appendChild(row);
+  });
+  renderKPIs(state.latestItems, alerts);
+}
+
+function evaluateAlerts(items = []) {
+  const thresholds = getThresholds();
+  const pending = items
+    .filter((item) => thresholds[item.codigo]?.habilitado !== false)
+    .map((item) => ({ ...item, minimo: thresholds[item.codigo]?.minimo ?? 0 }))
+    .filter((item) => item.minimo > 0 && Number(item.quantidade) <= Number(item.minimo));
+  const signature = pending.map((p) => `${p.codigo}:${p.quantidade}/${p.minimo}`).join('|');
+  if (signature !== state.lastAlertHash && pending.length && !state.alertsPaused) {
+    showToast('Alertas: itens atingiram o estoque mínimo!');
+    console.info('Simulando envio de email (nodemailer no backend) para responsáveis.');
+  }
+  state.lastAlertHash = signature;
+  renderAlerts(pending);
+}
+
+function renderCharts() {
+  if (!state.visualsVisible || !state.latestItems.length) return;
+  chartManager.render('stockByCategory', 'bar', buildCategoryDataset(state.latestItems));
+  chartManager.render('stockTrend', 'line', buildTrendDataset(state.latestItems));
+}
+
+function queueVisualRefresh() {
+  renderKPIs(state.latestItems, []);
+  evaluateAlerts(state.latestItems);
+  renderCharts();
+}
+
+function setupVisualizationLazyLoad() {
+  if (!elements.dashboardVisuals) return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          state.visualsVisible = true;
+          queueVisualRefresh();
+        }
+      });
+    },
+    { threshold: 0.25 },
+  );
+  observer.observe(elements.dashboardVisuals);
+}
+
+function startAlertCron() {
+  if (alertIntervalId) clearInterval(alertIntervalId);
+  alertIntervalId = setInterval(() => {
+    if (!state.alertsPaused && state.latestItems.length) {
+      evaluateAlerts(state.latestItems);
+    }
+  }, 30000);
+}
+
 async function loadItems() {
   try {
     const { data } = await request('/items');
-    renderList(elements.itemsList, data, 'item');
+    state.latestItems = data || [];
+    renderList(elements.itemsList, state.latestItems, 'item');
+    queueVisualRefresh();
+    startAlertCron();
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -216,6 +447,28 @@ async function handleItemSubmit(event) {
   } catch (error) {
     showToast(error.message, 'error');
   }
+}
+
+function handleThresholdSubmit(event) {
+  event.preventDefault();
+  const payload = serializeForm(elements.thresholdForm);
+  const minimo = Number(payload.minimo);
+  if (!payload.codigo) {
+    showToast('Informe um código para configurar o limite.', 'error');
+    return;
+  }
+  if (minimo < 0) {
+    showToast('Limite deve ser zero ou positivo.', 'error');
+    return;
+  }
+  const thresholds = getThresholds();
+  thresholds[payload.codigo] = {
+    minimo,
+    habilitado: payload.habilitado === 'on',
+  };
+  saveThresholds(thresholds);
+  showToast('Configuração de estoque mínimo salva.');
+  evaluateAlerts(state.latestItems);
 }
 
 async function handleSupplierSubmit(event) {
@@ -347,6 +600,13 @@ async function handlePhoneSubmit(event) {
   }
 }
 
+function handleExportClick(event) {
+  const target = event.currentTarget;
+  const id = target.dataset.export;
+  const format = target.dataset.format;
+  chartManager.export(id, format);
+}
+
 function addEventListeners() {
   elements.primaryLoginBtn.addEventListener('click', () => {
     elements.loginCard.scrollIntoView({ behavior: 'smooth' });
@@ -365,6 +625,7 @@ function addEventListeners() {
   elements.customerForm.addEventListener('submit', handleCustomerSubmit);
   elements.addressForm.addEventListener('submit', handleAddressSubmit);
   elements.phoneForm.addEventListener('submit', handlePhoneSubmit);
+  elements.thresholdForm.addEventListener('submit', handleThresholdSubmit);
 
   elements.logoutBtn.addEventListener('click', () => {
     setToken(null);
@@ -377,6 +638,15 @@ function addEventListeners() {
     });
   });
 
+  document.querySelectorAll('[data-export]').forEach((btn) => {
+    btn.addEventListener('click', handleExportClick);
+  });
+
+  elements.toggleAlerts.addEventListener('click', () => {
+    state.alertsPaused = !state.alertsPaused;
+    elements.toggleAlerts.textContent = state.alertsPaused ? 'Retomar' : 'Pausar';
+  });
+
   attachMask(document.querySelector('#suppliersPage input[name="cnpj"]'), formatCNPJ);
   attachMask(document.querySelector('#suppliersPage input[name="telefone"]'), formatPhone);
   attachMask(document.querySelector('#customersPage input[name="cnpj"]'), formatCNPJ);
@@ -386,6 +656,7 @@ function addEventListeners() {
 
 function init() {
   addEventListeners();
+  setupVisualizationLazyLoad();
   syncAuthState();
   if (state.token) {
     loadItems();
