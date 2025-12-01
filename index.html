@@ -48,28 +48,29 @@
 
     <div class="workspace">
       <div class="topbar">
-        <span class="topbar__hint">Bem-vindo! Veja como o sistema funciona e navegue pelas páginas.</span>
-        <button id="authToggle" class="btn btn--ghost">Login</button>
+        <span class="topbar__hint">Bem-vindo! Navegue pelas páginas para cadastrar e acompanhar.</span>
+        <button id="authToggle" class="btn btn--login">Login</button>
       </div>
       <header class="hero">
         <div class="hero__content">
           <p class="hero__eyebrow">Como funciona</p>
           <h1>Organize o estoque em minutos</h1>
           <p class="hero__lead">
-            Cadastre itens, fornecedores e clientes em páginas dedicadas. Cada item abre em sua própria tela com dashboard, exportação para Excel e upload de imagens via blob.
+            Use o menu lateral para acessar cadastros separados. Cada área tem exportação própria, listas resumidas e acompanhamento rápido.
           </p>
           <div class="hero__actions">
+            <a class="btn btn--primary" href="items.html">Abrir itens</a>
             <button id="docsBtnHeader" class="btn btn--ghost">Baixar tabela atual</button>
           </div>
-          <p class="hero__hint">As últimas inclusões aparecem abaixo. O login fica no canto superior direito.</p>
+          <p class="hero__hint">Veja abaixo um resumo do que foi adicionado recentemente.</p>
         </div>
         <div class="hero__panel">
-          <p class="hero__panel-title">Destaques rápidos</p>
+          <p class="hero__panel-title">O que você encontra</p>
           <ol>
-            <li>Menu lateral em verde-água para navegar entre cadastros.</li>
-            <li>Itens abrem em tela própria com totais, preço e imagem.</li>
-            <li>Exportação direta da tabela visível para Excel/CSV.</li>
-            <li>Upload de imagem em blob (Data URL) junto ao item.</li>
+            <li>Menu lateral fixo em verde-água em todas as páginas.</li>
+            <li>Páginas separadas para itens, fornecedores, clientes e mais.</li>
+            <li>Exportação direta da tabela aberta para Excel/CSV.</li>
+            <li>Upload de imagem em blob junto com o item.</li>
           </ol>
         </div>
       </header>
@@ -78,8 +79,8 @@
         <section class="card card--wide">
           <div class="card__header card__header--row">
             <div>
-              <h2>Painel principal</h2>
-              <p class="muted">Veja rapidamente os cadastros mais recentes.</p>
+              <h2>Últimas movimentações</h2>
+              <p class="muted">Acompanhe rapidamente o que entrou por último no sistema.</p>
             </div>
           </div>
 
@@ -101,86 +102,22 @@
             </div>
           </div>
 
-          <section class="dashboard-visuals" id="dashboardVisuals">
-            <div class="kpi-grid">
-              <div class="kpi-card">
-                <p class="kpi-card__label">Itens cadastrados</p>
-                <h3 id="kpiItemsTotal">–</h3>
-                <p class="muted">Contagem total após autenticação</p>
-              </div>
-              <div class="kpi-card">
-                <p class="kpi-card__label">Valor potencial</p>
-                <h3 id="kpiTotalValue">–</h3>
-                <p class="muted">Soma de quantidade x preço</p>
-              </div>
-              <div class="kpi-card kpi-card--alert">
-                <p class="kpi-card__label">Alertas ativos</p>
-                <h3 id="kpiAlertsCount">–</h3>
-                <p class="muted">Itens abaixo do estoque mínimo</p>
-              </div>
+          <div class="home-columns">
+            <div class="home-highlight">
+              <h3>Cadastros principais</h3>
+              <ul>
+                <li>Itens com imagem, preço e estoque mínimo.</li>
+                <li>Fornecedores com CNPJ e contatos validados.</li>
+                <li>Clientes, endereços e telefones em páginas separadas.</li>
+              </ul>
             </div>
-
-            <div class="chart-grid">
-              <div class="chart-card">
-                <div class="chart-card__header">
-                  <div>
-                    <p class="chart-card__eyebrow">Visualização</p>
-                    <h3>Estoque por categoria</h3>
-                  </div>
-                  <div class="chart-card__actions">
-                    <button class="btn btn--ghost" data-export="stockByCategory" data-format="png">Exportar PNG</button>
-                    <button class="btn btn--ghost" data-export="stockByCategory" data-format="csv">Exportar CSV</button>
-                  </div>
-                </div>
-                <canvas id="stockByCategory" height="240" aria-label="Gráfico de barras de estoque por categoria"></canvas>
+            <div class="home-highlight">
+              <h3>Atalhos rápidos</h3>
+              <div class="hero__actions">
+                <a class="btn btn--primary" href="suppliers.html">Fornecedores</a>
+                <a class="btn btn--ghost" href="customers.html">Clientes</a>
               </div>
-
-              <div class="chart-card">
-                <div class="chart-card__header">
-                  <div>
-                    <p class="chart-card__eyebrow">Tendência</p>
-                    <h3>Movimentação simulada</h3>
-                  </div>
-                  <div class="chart-card__actions">
-                    <button class="btn btn--ghost" data-export="stockTrend" data-format="png">Exportar PNG</button>
-                    <button class="btn btn--ghost" data-export="stockTrend" data-format="csv">Exportar CSV</button>
-                  </div>
-                </div>
-                <canvas id="stockTrend" height="240" aria-label="Gráfico de linha de tendência de estoque"></canvas>
-              </div>
-
-              <div class="chart-card chart-card--alerts">
-                <div class="chart-card__header">
-                  <div>
-                    <p class="chart-card__eyebrow">Alertas</p>
-                    <h3>Estoque mínimo</h3>
-                  </div>
-                  <div class="chart-card__actions">
-                    <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
-                  </div>
-                </div>
-                <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
-              </div>
-            </div>
-          </section>
-
-          <div class="grid grid--cta">
-            <div class="cta">
-              <div>
-                <p class="cta__eyebrow">Cadastro rápido</p>
-                <h3>Página de itens</h3>
-                <p>Cadastre código, nome, quantidade e preço. Se quiser, já inclua descrição, categoria e imagem.</p>
-              </div>
-              <a class="btn btn--primary" href="items.html">Abrir</a>
-            </div>
-
-            <div class="cta">
-              <div>
-                <p class="cta__eyebrow">Cadastro rápido</p>
-                <h3>Página de fornecedores</h3>
-                <p>Cadastre CNPJ, razão social, nome do fornecedor (contato), email e telefone com validação de números.</p>
-              </div>
-              <a class="btn btn--primary" href="suppliers.html">Abrir</a>
+              <p class="muted">Use os botões ou o menu lateral para navegar sem perder o contexto.</p>
             </div>
           </div>
         </section>

@@ -44,6 +44,7 @@ const elements = {
   itemImage: document.getElementById('itemImage'),
   itemImagePreview: document.getElementById('itemImagePreview'),
   itemsBoard: document.getElementById('itemsBoard'),
+  itemsBoardDetail: document.getElementById('itemsBoardDetail'),
   itemsCount: document.getElementById('itemsCount'),
   selectedItemName: document.getElementById('selectedItemName'),
   selectedItemCode: document.getElementById('selectedItemCode'),
@@ -297,34 +298,41 @@ function openItemDetail(item) {
 
 
 function renderItemsBoard(items = []) {
-  if (!elements.itemsBoard) return;
-  elements.itemsCount.textContent = items.length;
-  if (!items.length) {
-    elements.itemsBoard.textContent = 'Nenhum item carregado.';
-    return;
+  if (!elements.itemsBoard && !elements.itemsBoardDetail) return;
+  if (elements.itemsCount) {
+    elements.itemsCount.textContent = items.length;
   }
-  elements.itemsBoard.innerHTML = '';
-  items.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'list__item list__item--action';
-    row.innerHTML = `
-      <div>
-        <strong>${item.nome}</strong>
-        <span class="muted">${item.codigo}</span>
-      </div>
-      <div class="list__actions">
-        <span class="badge">Qtd: ${item.quantidade}</span>
-        <button class="btn btn--ghost btn--xs" data-code="${item.codigo}">Ver página</button>
-      </div>
-    `;
-    row.querySelector('button').addEventListener('click', (event) => {
-      event.stopPropagation();
-      openItemDetail(item);
+  const boards = [elements.itemsBoard, elements.itemsBoardDetail].filter(Boolean);
+  boards.forEach((board) => {
+    if (!items.length) {
+      board.textContent = 'Nenhum item carregado.';
+      return;
+    }
+    board.innerHTML = '';
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'list__item list__item--action';
+      row.innerHTML = `
+        <div>
+          <strong>${item.nome}</strong>
+          <span class="muted">${item.codigo}</span>
+        </div>
+        <div class="list__actions">
+          <span class="badge">Qtd: ${item.quantidade}</span>
+          <button class="btn btn--ghost btn--xs" data-code="${item.codigo}">Ver página</button>
+        </div>
+      `;
+      row.querySelector('button').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openItemDetail(item);
+      });
+      row.addEventListener('click', () => updateSelectedItem(item));
+      board.appendChild(row);
     });
-    row.addEventListener('click', () => updateSelectedItem(item));
-    elements.itemsBoard.appendChild(row);
   });
-  updateSelectedItem(items[0]);
+  if (items.length) {
+    updateSelectedItem(items[0]);
+  }
 }
 
 function buildCategoryDataset(items = []) {
@@ -373,6 +381,7 @@ function buildTrendDataset(items = []) {
 }
 
 function renderKPIs(items = [], alerts = []) {
+  if (!elements.kpiItemsTotal || !elements.kpiTotalValue || !elements.kpiAlertsCount) return;
   elements.kpiItemsTotal.textContent = items.length;
   const totalValue = items.reduce(
     (acc, item) => acc + (Number(item.quantidade) || 0) * (Number(item.preco) || 0),
@@ -386,6 +395,7 @@ function renderKPIs(items = [], alerts = []) {
 }
 
 function renderAlerts(alerts = []) {
+  if (!elements.alertsList) return;
   if (!alerts.length) {
     elements.alertsList.textContent = 'Nenhum alerta pendente.';
     renderKPIs(state.latestItems, alerts);
@@ -424,8 +434,10 @@ function evaluateAlerts(items = []) {
 
 function renderCharts() {
   if (!state.visualsVisible || !state.latestItems.length) return;
-  chartManager.render('stockByCategory', 'bar', buildCategoryDataset(state.latestItems));
-  chartManager.render('stockTrend', 'line', buildTrendDataset(state.latestItems));
+  if (elements.stockByCategory && elements.stockTrend) {
+    chartManager.render('stockByCategory', 'bar', buildCategoryDataset(state.latestItems));
+    chartManager.render('stockTrend', 'line', buildTrendDataset(state.latestItems));
+  }
 }
 
 function queueVisualRefresh() {
@@ -450,6 +462,30 @@ function setupVisualizationLazyLoad() {
   observer.observe(elements.dashboardVisuals);
 }
 
+function setupTabPanels() {
+  const toggles = Array.from(document.querySelectorAll('.view-toggle button'));
+  const panels = Array.from(document.querySelectorAll('.tab-panel'));
+  if (!toggles.length || !panels.length) return;
+
+  const activate = (targetId) => {
+    toggles.forEach((btn) => {
+      const isActive = btn.dataset.target === targetId;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle('tab-panel--active', panel.id === targetId);
+    });
+  };
+
+  toggles.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      if (targetId) activate(targetId);
+    });
+  });
+}
+
 function startAlertCron() {
   if (alertIntervalId) clearInterval(alertIntervalId);
   alertIntervalId = setInterval(() => {
@@ -467,7 +503,9 @@ async function loadItems() {
   try {
     const { data } = await request('/items');
     state.latestItems = data || [];
-    renderList(elements.itemsList, state.latestItems, 'item');
+    if (elements.itemsList) {
+      renderList(elements.itemsList, state.latestItems, 'item');
+    }
     renderItemsBoard(state.latestItems);
     queueVisualRefresh();
     startAlertCron();
@@ -484,7 +522,9 @@ async function loadSuppliers() {
   try {
     const { data } = await request('/suppliers');
     state.latestSuppliers = data || [];
-    renderList(elements.suppliersList, state.latestSuppliers, 'supplier');
+    if (elements.suppliersList) {
+      renderList(elements.suppliersList, state.latestSuppliers, 'supplier');
+    }
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -835,6 +875,7 @@ function addEventListeners() {
 
 function init() {
   addEventListeners();
+  setupTabPanels();
   setupVisualizationLazyLoad();
   syncAuthState();
   if (state.token) {

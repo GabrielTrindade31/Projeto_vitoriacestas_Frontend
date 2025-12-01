@@ -65,7 +65,7 @@ body {
 .nav__item {
   width: 100%;
   text-align: left;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.12);
   color: #e7fffa;
@@ -73,6 +73,10 @@ body {
   font-weight: 700;
   cursor: pointer;
   transition: all 150ms ease;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
 }
 
 .nav__item:hover,
@@ -285,6 +289,13 @@ body {
   box-shadow: 0 10px 25px rgba(15, 157, 88, 0.18);
 }
 
+.btn--login {
+  padding: 14px 22px;
+  background: linear-gradient(135deg, #0b7e46 0%, #0a6c3d 100%);
+  color: #ffffff;
+  box-shadow: 0 12px 30px rgba(11, 126, 70, 0.32);
+}
+
 .checkbox {
   display: flex;
   align-items: center;
@@ -324,6 +335,43 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(15, 157, 88, 0.12);
+}
+
+.view-toggle button {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  min-width: 130px;
+}
+
+.view-toggle button.is-active {
+  background: linear-gradient(135deg, rgba(15, 183, 161, 0.16), rgba(15, 157, 88, 0.16));
+  color: #0b7e46;
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.tab-panel {
+  display: none;
+  gap: 16px;
+}
+
+.tab-panel--active {
+  display: grid;
 }
 
 .item-form {
@@ -657,6 +705,15 @@ body {
     padding: 0 24px 32px;
   }
 
+  .view-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .view-toggle button {
+    flex: 1;
+  }
+
   .item-grid {
     grid-template-columns: 1fr;
   }
@@ -686,4 +743,30 @@ body {
   max-width: 100%;
   border-radius: 10px;
   box-shadow: var(--shadow);
+}
+
+.home-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.home-highlight {
+  background: #f6fdf9;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.home-highlight h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.home-highlight ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
 }
