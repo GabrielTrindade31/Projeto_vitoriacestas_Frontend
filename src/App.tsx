@@ -76,12 +76,58 @@ interface Phone {
   numero?: string;
 }
 
+interface Manufacturing {
+  id?: number;
+  produto_id?: number | null;
+  material_id?: number | null;
+  quantidade_material?: number;
+}
+
+interface MaterialDelivery {
+  id?: number;
+  material_id?: number | null;
+  fornecedor_id?: number | null;
+  quantidade?: number;
+  data_entrada?: string;
+  custo?: number;
+}
+
+interface Order {
+  id?: number;
+  cliente_id?: number | null;
+  endereco?: string;
+  preco?: number;
+  data_pedido?: string;
+  cpf_presentado?: string;
+  nome_presentado?: string;
+  email_presentado?: string;
+  endereco_presentado?: string;
+}
+
+interface Shipment {
+  id?: number;
+  pedido_id?: number | null;
+  produto_id?: number | null;
+  quantidade?: number;
+  data_envio?: string;
+  preco?: number;
+}
+
+interface FeedbackRow {
+  id?: number;
+  cliente_id?: number | null;
+  data?: string;
+  nota?: number;
+  contato?: string;
+  observacao?: string;
+}
+
 interface UploadResponse {
   url?: string;
   path?: string;
 }
 
-type Page = 'dashboard' | 'items' | 'suppliers' | 'customers' | 'addresses' | 'phones';
+type Page = 'dashboard' | 'items' | 'operations' | 'suppliers' | 'customers' | 'addresses' | 'phones';
 
 const digitsOnly = (value: string) => value.replace(/\D+/g, '');
 
@@ -265,6 +311,7 @@ function Sidebar({ page, setPage, authenticated, onLogin, onLogout }: { page: Pa
   const links: { id: Page; label: string }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'items', label: 'Itens' },
+    { id: 'operations', label: 'Operações' },
     { id: 'suppliers', label: 'Fornecedores' },
     { id: 'customers', label: 'Clientes' },
     { id: 'addresses', label: 'Endereços' },
@@ -469,11 +516,27 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
       <div className="grid grid--3">
         <label className="form__group">
           <span>DDD</span>
-          <input value={form.ddd || ''} maxLength={3} onChange={(e) => setForm({ ...form, ddd: digitsOnly(e.target.value) })} required />
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={form.ddd || ''}
+            maxLength={3}
+            placeholder="11"
+            onChange={(e) => setForm({ ...form, ddd: digitsOnly(e.target.value) })}
+            required
+          />
         </label>
         <label className="form__group">
           <span>Número</span>
-          <input value={form.numero || ''} maxLength={9} onChange={(e) => setForm({ ...form, numero: digitsOnly(e.target.value) })} required />
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={form.numero || ''}
+            maxLength={9}
+            placeholder="912345678"
+            onChange={(e) => setForm({ ...form, numero: digitsOnly(e.target.value) })}
+            required
+          />
           {displayValue && <small className="muted">{displayValue}</small>}
         </label>
         <label className="form__group">
@@ -848,25 +911,596 @@ function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
   );
 }
 
+function ManufacturingForm({ products, materials, onSubmit }: { products: Product[]; materials: RawMaterial[]; onSubmit: (payload: Manufacturing) => Promise<void> }) {
+  const [form, setForm] = useState<Manufacturing>({ produto_id: null, material_id: null, quantidade_material: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit({ ...form, quantidade_material: Number(form.quantidade_material || 0) });
+      setForm({ produto_id: null, material_id: null, quantidade_material: 0 });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar manufatura');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Produto</span>
+          <select value={form.produto_id ?? ''} onChange={(e) => setForm({ ...form, produto_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Matéria-prima</span>
+          <select value={form.material_id ?? ''} onChange={(e) => setForm({ ...form, material_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {materials.map((material) => (
+              <option key={material.id} value={material.id}>
+                {material.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Quantidade usada</span>
+          <input
+            type="number"
+            min={0}
+            value={form.quantidade_material || 0}
+            onChange={(e) => setForm({ ...form, quantidade_material: Number(e.target.value) })}
+            required
+          />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrar manufatura'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function MaterialDeliveryForm({ materials, suppliers, onSubmit }: { materials: RawMaterial[]; suppliers: Supplier[]; onSubmit: (payload: MaterialDelivery) => Promise<void> }) {
+  const [form, setForm] = useState<MaterialDelivery>({ material_id: null, fornecedor_id: null, quantidade: 0, data_entrada: '', custo: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit({ ...form, quantidade: Number(form.quantidade || 0), custo: Number(form.custo || 0) });
+      setForm({ material_id: null, fornecedor_id: null, quantidade: 0, data_entrada: '', custo: 0 });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar entrega');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Matéria-prima</span>
+          <select value={form.material_id ?? ''} onChange={(e) => setForm({ ...form, material_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {materials.map((material) => (
+              <option key={material.id} value={material.id}>
+                {material.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Fornecedor (opcional)</span>
+          <select value={form.fornecedor_id ?? ''} onChange={(e) => setForm({ ...form, fornecedor_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Sem fornecedor</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.razao_social}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Quantidade</span>
+          <input type="number" min={0} value={form.quantidade || 0} onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) })} required />
+        </label>
+      </div>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Data de entrada</span>
+          <input type="date" value={form.data_entrada || ''} onChange={(e) => setForm({ ...form, data_entrada: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Custo</span>
+          <input type="number" min={0} step="0.01" value={form.custo || 0} onChange={(e) => setForm({ ...form, custo: Number(e.target.value) })} />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrar entrega'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function OrdersForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (payload: Order) => Promise<void> }) {
+  const [form, setForm] = useState<Order>({ cliente_id: null, endereco: '', preco: 0, data_pedido: '', cpf_presentado: '', nome_presentado: '', email_presentado: '', endereco_presentado: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit({
+        ...form,
+        preco: Number(form.preco || 0),
+        cpf_presentado: form.cpf_presentado ? digitsOnly(form.cpf_presentado) : undefined,
+      });
+      setForm({ cliente_id: null, endereco: '', preco: 0, data_pedido: '', cpf_presentado: '', nome_presentado: '', email_presentado: '', endereco_presentado: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar pedido');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Cliente</span>
+          <select value={form.cliente_id ?? ''} onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Preço</span>
+          <input type="number" min={0} step="0.01" value={form.preco || 0} onChange={(e) => setForm({ ...form, preco: Number(e.target.value) })} />
+        </label>
+        <label className="form__group">
+          <span>Data do pedido</span>
+          <input type="date" value={form.data_pedido || ''} onChange={(e) => setForm({ ...form, data_pedido: e.target.value })} />
+        </label>
+      </div>
+      <label className="form__group">
+        <span>Endereço de entrega</span>
+        <input value={form.endereco || ''} onChange={(e) => setForm({ ...form, endereco: e.target.value })} placeholder="Rua, número, complemento" />
+      </label>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>CPF presenteado</span>
+          <input value={form.cpf_presentado || ''} onChange={(e) => setForm({ ...form, cpf_presentado: maskCpf(e.target.value) })} placeholder="000.000.000-00" />
+        </label>
+        <label className="form__group">
+          <span>Nome presenteado</span>
+          <input value={form.nome_presentado || ''} onChange={(e) => setForm({ ...form, nome_presentado: e.target.value })} />
+        </label>
+      </div>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>Email presenteado</span>
+          <input type="email" value={form.email_presentado || ''} onChange={(e) => setForm({ ...form, email_presentado: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Endereço presenteado</span>
+          <input value={form.endereco_presentado || ''} onChange={(e) => setForm({ ...form, endereco_presentado: e.target.value })} />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrar pedido'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ShipmentForm({ orders, products, onSubmit }: { orders: Order[]; products: Product[]; onSubmit: (payload: Shipment) => Promise<void> }) {
+  const [form, setForm] = useState<Shipment>({ pedido_id: null, produto_id: null, quantidade: 0, data_envio: '', preco: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit({ ...form, quantidade: Number(form.quantidade || 0), preco: Number(form.preco || 0) });
+      setForm({ pedido_id: null, produto_id: null, quantidade: 0, data_envio: '', preco: 0 });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar envio');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Pedido</span>
+          <select value={form.pedido_id ?? ''} onChange={(e) => setForm({ ...form, pedido_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {orders.map((order) => (
+              <option key={order.id} value={order.id}>
+                Pedido #{order.id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Produto</span>
+          <select value={form.produto_id ?? ''} onChange={(e) => setForm({ ...form, produto_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Quantidade</span>
+          <input type="number" min={0} value={form.quantidade || 0} onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) })} required />
+        </label>
+      </div>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>Data de envio</span>
+          <input type="date" value={form.data_envio || ''} onChange={(e) => setForm({ ...form, data_envio: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Preço</span>
+          <input type="number" min={0} step="0.01" value={form.preco || 0} onChange={(e) => setForm({ ...form, preco: Number(e.target.value) })} />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrar envio'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function FeedbackForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (payload: FeedbackRow) => Promise<void> }) {
+  const [form, setForm] = useState<FeedbackRow>({ cliente_id: null, data: '', nota: 0, contato: '', observacao: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit({ ...form, nota: Number(form.nota || 0) });
+      setForm({ cliente_id: null, data: '', nota: 0, contato: '', observacao: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar feedback');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Cliente</span>
+          <select value={form.cliente_id ?? ''} onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Selecione</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Data</span>
+          <input type="date" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Nota</span>
+          <input type="number" min={0} max={10} value={form.nota || 0} onChange={(e) => setForm({ ...form, nota: Number(e.target.value) })} />
+        </label>
+      </div>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>Contato</span>
+          <input value={form.contato || ''} onChange={(e) => setForm({ ...form, contato: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Observação</span>
+          <textarea value={form.observacao || ''} onChange={(e) => setForm({ ...form, observacao: e.target.value })} />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrar feedback'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function OperationsTabs({
+  active,
+  onChange,
+}: {
+  active: 'manufatura' | 'entrega' | 'pedido' | 'envio' | 'feedback';
+  onChange: (key: 'manufatura' | 'entrega' | 'pedido' | 'envio' | 'feedback') => void;
+}) {
+  const tabs = [
+    { key: 'manufatura', label: 'Manufatura' },
+    { key: 'entrega', label: 'Entrega de material' },
+    { key: 'pedido', label: 'Pedidos' },
+    { key: 'envio', label: 'Envio de produto' },
+    { key: 'feedback', label: 'Feedback' },
+  ] as const;
+
+  return (
+    <div className="tabs">
+      {tabs.map((tab) => (
+        <button key={tab.key} className={`tabs__item ${active === tab.key ? 'is-active' : ''}`} onClick={() => onChange(tab.key)}>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function OperationsPage({
+  products,
+  materials,
+  suppliers,
+  customers,
+  orders,
+  shipments,
+  deliveries,
+  manufacturing,
+  feedbackRows,
+  onCreateManufacturing,
+  onCreateDelivery,
+  onCreateOrder,
+  onCreateShipment,
+  onCreateFeedback,
+}: {
+  products: Product[];
+  materials: RawMaterial[];
+  suppliers: Supplier[];
+  customers: Customer[];
+  orders: Order[];
+  shipments: Shipment[];
+  deliveries: MaterialDelivery[];
+  manufacturing: Manufacturing[];
+  feedbackRows: FeedbackRow[];
+  onCreateManufacturing: (payload: Manufacturing) => Promise<void>;
+  onCreateDelivery: (payload: MaterialDelivery) => Promise<void>;
+  onCreateOrder: (payload: Order) => Promise<void>;
+  onCreateShipment: (payload: Shipment) => Promise<void>;
+  onCreateFeedback: (payload: FeedbackRow) => Promise<void>;
+}) {
+  const [tab, setTab] = useState<'manufatura' | 'entrega' | 'pedido' | 'envio' | 'feedback'>('manufatura');
+
+  return (
+    <div className="panel">
+      <header className="panel__header">
+        <div>
+          <h1>Operações</h1>
+          <p className="muted">Fluxos derivados das tabelas de manufatura, entregas, pedidos, envios e feedback.</p>
+          <OperationsTabs active={tab} onChange={setTab} />
+        </div>
+      </header>
+
+      {tab === 'manufatura' && (
+        <section className="panel__section">
+          <SectionHeader title="Manufatura" subtitle="Relaciona produtos com matérias-primas e quantidades" />
+          <ManufacturingForm products={products} materials={materials} onSubmit={onCreateManufacturing} />
+          {manufacturing.length ? (
+            <div className="table">
+              <div className="table__row table__head">
+                <span>Produto</span>
+                <span>Matéria-prima</span>
+                <span>Qtd.</span>
+              </div>
+              {manufacturing.map((row) => (
+                <div key={row.id || `${row.produto_id}-${row.material_id}`} className="table__row">
+                  <span className="table__cell">{products.find((p) => p.id === row.produto_id)?.nome || 'Produto'}</span>
+                  <span className="table__cell">{materials.find((m) => m.id === row.material_id)?.nome || 'Material'}</span>
+                  <span className="table__cell">{row.quantidade_material ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Nenhuma relação de manufatura cadastrada." />
+          )}
+        </section>
+      )}
+
+      {tab === 'entrega' && (
+        <section className="panel__section">
+          <SectionHeader title="Entrega de material" subtitle="Entradas com fornecedor opcional e custo" />
+          <MaterialDeliveryForm materials={materials} suppliers={suppliers} onSubmit={onCreateDelivery} />
+          {deliveries.length ? (
+            <div className="table">
+              <div className="table__row table__head">
+                <span>Material</span>
+                <span>Fornecedor</span>
+                <span>Qtd.</span>
+                <span>Custo</span>
+              </div>
+              {deliveries.map((delivery) => (
+                <div key={delivery.id || `${delivery.material_id}-${delivery.fornecedor_id}-${delivery.data_entrada}`} className="table__row">
+                  <div className="table__cell">
+                    <strong>{materials.find((m) => m.id === delivery.material_id)?.nome || 'Material'}</strong>
+                    <p className="muted">{delivery.data_entrada || 'Data não informada'}</p>
+                  </div>
+                  <span className="table__cell">{suppliers.find((s) => s.id === delivery.fornecedor_id)?.razao_social || '---'}</span>
+                  <span className="table__cell">{delivery.quantidade ?? 0}</span>
+                  <span className="table__cell">{money(delivery.custo || 0)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Nenhuma entrega registrada." />
+          )}
+        </section>
+      )}
+
+      {tab === 'pedido' && (
+        <section className="panel__section">
+          <SectionHeader title="Pedidos" subtitle="Ligados a cliente e dados de presenteado" />
+          <OrdersForm customers={customers} onSubmit={onCreateOrder} />
+          {orders.length ? (
+            <div className="table">
+              <div className="table__row table__head">
+                <span>Pedido</span>
+                <span>Cliente</span>
+                <span>Preço</span>
+              </div>
+              {orders.map((order) => (
+                <div key={order.id || order.endereco} className="table__row">
+                  <div className="table__cell">
+                    <strong>#{order.id}</strong>
+                    <p className="muted">{order.data_pedido || 'Data não informada'}</p>
+                  </div>
+                  <span className="table__cell">{customers.find((c) => c.id === order.cliente_id)?.nome || 'Cliente'}</span>
+                  <span className="table__cell">{money(order.preco || 0)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Nenhum pedido registrado." />
+          )}
+        </section>
+      )}
+
+      {tab === 'envio' && (
+        <section className="panel__section">
+          <SectionHeader title="Envio de produto" subtitle="Relaciona pedidos com produtos e datas de envio" />
+          <ShipmentForm orders={orders} products={products} onSubmit={onCreateShipment} />
+          {shipments.length ? (
+            <div className="table">
+              <div className="table__row table__head">
+                <span>Pedido</span>
+                <span>Produto</span>
+                <span>Qtd.</span>
+                <span>Preço</span>
+              </div>
+              {shipments.map((ship) => (
+                <div key={ship.id || `${ship.pedido_id}-${ship.produto_id}`} className="table__row">
+                  <div className="table__cell">
+                    <strong>Pedido #{ship.pedido_id}</strong>
+                    <p className="muted">{ship.data_envio || 'Data não informada'}</p>
+                  </div>
+                  <span className="table__cell">{products.find((p) => p.id === ship.produto_id)?.nome || 'Produto'}</span>
+                  <span className="table__cell">{ship.quantidade ?? 0}</span>
+                  <span className="table__cell">{money(ship.preco || 0)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Nenhum envio registrado." />
+          )}
+        </section>
+      )}
+
+      {tab === 'feedback' && (
+        <section className="panel__section">
+          <SectionHeader title="Feedback" subtitle="Avaliações de clientes com notas e observações" />
+          <FeedbackForm customers={customers} onSubmit={onCreateFeedback} />
+          {feedbackRows.length ? (
+            <div className="table">
+              <div className="table__row table__head">
+                <span>Cliente</span>
+                <span>Nota</span>
+                <span>Data</span>
+              </div>
+              {feedbackRows.map((fb) => (
+                <div key={fb.id || `${fb.cliente_id}-${fb.data}`} className="table__row">
+                  <div className="table__cell">
+                    <strong>{customers.find((c) => c.id === fb.cliente_id)?.nome || 'Cliente'}</strong>
+                    <p className="muted">{fb.observacao || 'Sem observação'}</p>
+                  </div>
+                  <span className="table__cell">{fb.nota ?? 0}</span>
+                  <span className="table__cell">{fb.data || '--'}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Nenhum feedback registrado." />
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMaterial, onUpload }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; onCreateProduct: (product: Product) => Promise<void>; onCreateMaterial: (material: RawMaterial) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
+  const [tab, setTab] = useState<'produtos' | 'materiais'>('produtos');
+
   return (
     <div className="panel">
       <header className="panel__header">
         <div>
           <h1>Itens</h1>
           <p className="muted">Cadastre produtos e matérias-primas seguindo os campos do banco.</p>
+          <div className="tabs">
+            <button className={`tabs__item ${tab === 'produtos' ? 'is-active' : ''}`} onClick={() => setTab('produtos')}>
+              Produtos
+            </button>
+            <button className={`tabs__item ${tab === 'materiais' ? 'is-active' : ''}`} onClick={() => setTab('materiais')}>
+              Matéria-prima
+            </button>
+          </div>
         </div>
       </header>
-      <section className="panel__section">
-        <SectionHeader title="Produtos" subtitle="Código, categoria, estoque, preço e fornecedor" />
-        <ProductForm suppliers={suppliers} onSubmit={onCreateProduct} onUpload={onUpload} />
-        <ProductsTable products={products} />
-      </section>
-      <section className="panel__section">
-        <SectionHeader title="Matéria-prima" subtitle="Dados completos para manufatura" />
-        <RawMaterialForm onSubmit={onCreateMaterial} onUpload={onUpload} />
-        <MaterialsTable materials={materials} />
-      </section>
+      {tab === 'produtos' ? (
+        <section className="panel__section">
+          <SectionHeader title="Produtos" subtitle="Código, categoria, estoque, preço e fornecedor" />
+          <ProductForm suppliers={suppliers} onSubmit={onCreateProduct} onUpload={onUpload} />
+          <ProductsTable products={products} />
+        </section>
+      ) : (
+        <section className="panel__section">
+          <SectionHeader title="Matéria-prima" subtitle="Dados completos para manufatura" />
+          <RawMaterialForm onSubmit={onCreateMaterial} onUpload={onUpload} />
+          <MaterialsTable materials={materials} />
+        </section>
+      )}
     </div>
   );
 }
@@ -973,6 +1607,11 @@ function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [phones, setPhones] = useState<Phone[]>([]);
+  const [manufacturing, setManufacturing] = useState<Manufacturing[]>([]);
+  const [deliveries, setDeliveries] = useState<MaterialDelivery[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const guardedFetch = useCallback(
@@ -1053,6 +1692,51 @@ function App() {
     }
   }, [guardedFetch]);
 
+  const loadManufacturing = useCallback(async () => {
+    try {
+      const data = await guardedFetch<Manufacturing[]>('/manufaturas');
+      setManufacturing(data || []);
+    } catch (err: any) {
+      setFeedback(err.message);
+    }
+  }, [guardedFetch]);
+
+  const loadDeliveries = useCallback(async () => {
+    try {
+      const data = await guardedFetch<MaterialDelivery[]>('/entregas-material');
+      setDeliveries(data || []);
+    } catch (err: any) {
+      setFeedback(err.message);
+    }
+  }, [guardedFetch]);
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const data = await guardedFetch<Order[]>('/pedidos');
+      setOrders(data || []);
+    } catch (err: any) {
+      setFeedback(err.message);
+    }
+  }, [guardedFetch]);
+
+  const loadShipments = useCallback(async () => {
+    try {
+      const data = await guardedFetch<Shipment[]>('/envios');
+      setShipments(data || []);
+    } catch (err: any) {
+      setFeedback(err.message);
+    }
+  }, [guardedFetch]);
+
+  const loadFeedback = useCallback(async () => {
+    try {
+      const data = await guardedFetch<FeedbackRow[]>('/feedback');
+      setFeedbackRows(data || []);
+    } catch (err: any) {
+      setFeedback(err.message);
+    }
+  }, [guardedFetch]);
+
   useEffect(() => {
     if (!authenticated) {
       setProducts([]);
@@ -1061,6 +1745,11 @@ function App() {
       setCustomers([]);
       setAddresses([]);
       setPhones([]);
+      setManufacturing([]);
+      setDeliveries([]);
+      setOrders([]);
+      setShipments([]);
+      setFeedbackRows([]);
       return;
     }
 
@@ -1071,11 +1760,22 @@ function App() {
       loadSuppliers();
       loadCustomers();
     }
+    if (page === 'operations') {
+      loadProducts();
+      loadMaterials();
+      loadSuppliers();
+      loadCustomers();
+      loadManufacturing();
+      loadDeliveries();
+      loadOrders();
+      loadShipments();
+      loadFeedback();
+    }
     if (page === 'suppliers') loadSuppliers();
     if (page === 'customers' || page === 'phones') loadCustomers();
     if (page === 'phones') loadPhones();
     if (page === 'addresses') loadAddresses();
-  }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones]);
+  }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
 
   const handleCreateProduct = async (payload: Product) => {
     const res = await request<Product>('/products', {
@@ -1131,6 +1831,51 @@ function App() {
     setPhones((prev) => [res.data, ...prev]);
   };
 
+  const handleCreateManufacturing = async (payload: Manufacturing) => {
+    const res = await request<Manufacturing>('/manufaturas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Manufatura registrada.');
+    setManufacturing((prev) => [res.data, ...prev]);
+  };
+
+  const handleCreateDelivery = async (payload: MaterialDelivery) => {
+    const res = await request<MaterialDelivery>('/entregas-material', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Entrega registrada.');
+    setDeliveries((prev) => [res.data, ...prev]);
+  };
+
+  const handleCreateOrder = async (payload: Order) => {
+    const res = await request<Order>('/pedidos', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Pedido registrado.');
+    setOrders((prev) => [res.data, ...prev]);
+  };
+
+  const handleCreateShipment = async (payload: Shipment) => {
+    const res = await request<Shipment>('/envios', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Envio registrado.');
+    setShipments((prev) => [res.data, ...prev]);
+  };
+
+  const handleCreateFeedback = async (payload: FeedbackRow) => {
+    const res = await request<FeedbackRow>('/feedback', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Feedback registrado.');
+    setFeedbackRows((prev) => [res.data, ...prev]);
+  };
+
   const content = useMemo(() => {
     if (!authenticated) {
       return (
@@ -1159,6 +1904,25 @@ function App() {
             onCreateProduct={handleCreateProduct}
             onCreateMaterial={handleCreateMaterial}
             onUpload={uploadImage}
+          />
+        );
+      case 'operations':
+        return (
+          <OperationsPage
+            products={products}
+            materials={materials}
+            suppliers={suppliers}
+            customers={customers}
+            orders={orders}
+            shipments={shipments}
+            deliveries={deliveries}
+            manufacturing={manufacturing}
+            feedbackRows={feedbackRows}
+            onCreateManufacturing={handleCreateManufacturing}
+            onCreateDelivery={handleCreateDelivery}
+            onCreateOrder={handleCreateOrder}
+            onCreateShipment={handleCreateShipment}
+            onCreateFeedback={handleCreateFeedback}
           />
         );
       case 'suppliers':
@@ -1220,7 +1984,7 @@ function App() {
       default:
         return <Dashboard products={products} materials={materials} suppliers={suppliers} customers={customers} />;
     }
-  }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage]);
+  }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage, orders, shipments, deliveries, manufacturing, feedbackRows]);
 
   return (
     <div className="layout">
