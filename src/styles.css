@@ -3,9 +3,9 @@
   --card: #ffffff;
   --muted: #6b7280;
   --text: #0f172a;
-  --primary: #0f9d58;
-  --primary-strong: #0b7e46;
-  --accent: #0fb7a1;
+  --primary: #1bd5bb;
+  --primary-strong: #12a796;
+  --accent: #1bd5bb;
   --border: #dfe7ef;
   --shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
 }
@@ -53,7 +53,7 @@ textarea {
   place-items: center;
   font-weight: 800;
   letter-spacing: 0.06em;
-  background: linear-gradient(135deg, #1bd5bb, #0f9d58);
+  background: linear-gradient(135deg, #1bd5bb, #12a796);
   color: #0e1b2c;
   box-shadow: 0 14px 36px rgba(27, 213, 187, 0.25);
 }

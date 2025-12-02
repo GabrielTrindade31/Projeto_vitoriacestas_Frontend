@@ -131,6 +131,12 @@ type Page = 'dashboard' | 'items' | 'operations' | 'suppliers' | 'customers' | '
 
 const digitsOnly = (value: string) => value.replace(/\D+/g, '');
 
+const normalizePhoneDigits = (value: string) => {
+  const digits = digitsOnly(value);
+  const withoutCountry = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
+  return withoutCountry.slice(0, 11);
+};
+
 const maskCpf = (value: string) => {
   const digits = digitsOnly(value).slice(0, 11);
   return digits
@@ -149,8 +155,8 @@ const maskCnpj = (value: string) => {
 };
 
 const maskPhone = (value: string) => {
-  const stripped = digitsOnly(value);
-  const digits = (stripped.startsWith('55') ? stripped.slice(2) : stripped).slice(0, 11);
+  const stripped = normalizePhoneDigits(value);
+  const digits = stripped;
   if (!digits) return '';
   const ddd = digits.slice(0, 2);
   const rest = digits.slice(2);
@@ -212,7 +218,8 @@ function useApi(token: string | null) {
 
       if (!res.ok) {
         const raw = typeof data === 'string' ? data : data?.message;
-        const sanitized = raw && !raw.startsWith('<!DOCTYPE') ? raw : 'Endpoint indisponível no momento.';
+        const fallback = `Endpoint ${path} indisponível no momento. Confirme se o backend expõe este recurso.`;
+        const sanitized = raw && !raw.startsWith('<!DOCTYPE') ? raw : fallback;
         throw new Error(sanitized || 'Erro ao processar requisição');
       }
 
@@ -591,7 +598,7 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         razao_social: form.razao_social.trim(),
         cnpj: digitsOnly(form.cnpj),
         email: form.email ? form.email : null,
-        telefone: form.telefone ? digitsOnly(form.telefone) : null,
+        telefone: form.telefone ? normalizePhoneDigits(form.telefone) : null,
         endereco_id: form.endereco_id ? Number(form.endereco_id) : null,
       });
       setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
@@ -626,8 +633,8 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         <label className="form__group">
           <span>Telefone</span>
           <input
-            value={maskedPhone}
-            onChange={(e) => setForm({ ...form, telefone: digitsOnly(e.target.value) })}
+            value={form.telefone || ''}
+            onChange={(e) => setForm({ ...form, telefone: normalizePhoneDigits(e.target.value) })}
             placeholder="+55 (11) 99999-0000"
           />
           {form.telefone && <small className="muted">{maskedPhone}</small>}
