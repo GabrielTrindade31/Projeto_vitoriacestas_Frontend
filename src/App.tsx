@@ -39,8 +39,8 @@ interface Supplier {
   cnpj: string;
   razao_social: string;
   contato: string;
-  email?: string;
-  telefone?: string;
+  email?: string | null;
+  telefone?: string | null;
   endereco_id?: number | null;
 }
 
@@ -149,11 +149,13 @@ const maskCnpj = (value: string) => {
 };
 
 const maskPhone = (value: string) => {
-  const digits = digitsOnly(value).slice(0, 11);
+  const stripped = digitsOnly(value);
+  const digits = (stripped.startsWith('55') ? stripped.slice(2) : stripped).slice(0, 11);
   if (!digits) return '';
   const ddd = digits.slice(0, 2);
   const rest = digits.slice(2);
-  if (rest.length <= 4) return `+55 (${ddd}${rest ? ') ' + rest : ''}`;
+  if (!rest) return `+55 (${ddd}`;
+  if (rest.length <= 4) return `+55 (${ddd}) ${rest}`;
   const first = rest.slice(0, rest.length - 4);
   const last = rest.slice(-4);
   return `+55 (${ddd}) ${first}-${last}`;
@@ -178,41 +180,44 @@ function useAuth() {
 }
 
 function useApi(token: string | null) {
-  const request = async <T,>(path: string, options: RequestInit = {}) => {
-    const headers: HeadersInit = options.headers || {};
-    const isFormData = options.body instanceof FormData;
-    const normalizedBody = isFormData || typeof options.body === 'string' ? options.body : undefined;
+  const request = useCallback(
+    async <T,>(path: string, options: RequestInit = {}) => {
+      const headers: HeadersInit = options.headers || {};
+      const isFormData = options.body instanceof FormData;
+      const normalizedBody = isFormData || typeof options.body === 'string' ? options.body : undefined;
 
-    if (!isFormData) {
-      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-    }
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+      if (!isFormData) {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
 
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers, body: normalizedBody });
-    const text = await res.text();
-    const contentType = res.headers.get('content-type') || '';
-    let data: any = {};
+      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, body: normalizedBody });
+      const text = await res.text();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = {};
 
-    if (text) {
-      if (contentType.includes('application/json')) {
-        data = JSON.parse(text);
-      } else {
-        try {
+      if (text) {
+        if (contentType.includes('application/json')) {
           data = JSON.parse(text);
-        } catch (err) {
-          data = { message: text };
+        } else {
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            data = { message: text };
+          }
         }
       }
-    }
 
-    if (!res.ok) {
-      throw new Error(data?.message || 'Erro ao processar requisição');
-    }
+      if (!res.ok) {
+        throw new Error(data?.message || 'Erro ao processar requisição');
+      }
 
-    return data as ApiResponse<T>;
-  };
+      return data as ApiResponse<T>;
+    },
+    [token]
+  );
 
   return { request };
 }
@@ -580,7 +585,8 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
       await onSubmit({
         ...form,
         cnpj: digitsOnly(form.cnpj),
-        telefone: form.telefone ? digitsOnly(form.telefone) : undefined,
+        email: form.email ? form.email : null,
+        telefone: form.telefone ? digitsOnly(form.telefone) : null,
         endereco_id: form.endereco_id ? Number(form.endereco_id) : null,
       });
       setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
