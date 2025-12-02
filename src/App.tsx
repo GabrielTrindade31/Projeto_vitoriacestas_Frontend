@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 const API_BASE =
   (window as any).APP_API_BASE ||
   import.meta.env.VITE_API_BASE ||
-  (window.location.hostname.includes('vercel.app') ? '/api' : 'https://projeto-vitoriacestas-backend.vercel.app/api');
+  'https://projeto-vitoriacestas-backend.vercel.app/api';
 
 const STORAGE_TOKEN_KEY = 'vitoriacestas_token';
 
@@ -211,7 +211,9 @@ function useApi(token: string | null) {
       }
 
       if (!res.ok) {
-        throw new Error(data?.message || 'Erro ao processar requisição');
+        const raw = typeof data === 'string' ? data : data?.message;
+        const sanitized = raw && !raw.startsWith('<!DOCTYPE') ? raw : 'Endpoint indisponível no momento.';
+        throw new Error(sanitized || 'Erro ao processar requisição');
       }
 
       return data as ApiResponse<T>;
@@ -577,6 +579,8 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const maskedPhone = maskPhone(form.telefone || '');
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
@@ -584,6 +588,7 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
     try {
       await onSubmit({
         ...form,
+        razao_social: form.razao_social.trim(),
         cnpj: digitsOnly(form.cnpj),
         email: form.email ? form.email : null,
         telefone: form.telefone ? digitsOnly(form.telefone) : null,
@@ -620,7 +625,12 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
         <label className="form__group">
           <span>Telefone</span>
-          <input value={form.telefone || ''} onChange={(e) => setForm({ ...form, telefone: maskPhone(e.target.value) })} placeholder="+55 (11) 99999-0000" />
+          <input
+            value={maskedPhone}
+            onChange={(e) => setForm({ ...form, telefone: digitsOnly(e.target.value) })}
+            placeholder="+55 (11) 99999-0000"
+          />
+          {form.telefone && <small className="muted">{maskedPhone}</small>}
         </label>
         <label className="form__group">
           <span>Endereço (opcional)</span>
@@ -1804,7 +1814,7 @@ function App() {
   const handleCreateSupplier = async (payload: Supplier) => {
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, razaoSocial: payload.razao_social }),
     });
     setFeedback('Fornecedor salvo com sucesso.');
     setSuppliers((prev) => [res.data, ...prev]);
