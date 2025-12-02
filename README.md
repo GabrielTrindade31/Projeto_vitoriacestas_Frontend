@@ -1,25 +1,23 @@
-# Frontend - Vitória Cestas (Estoque)
+# Frontend - Vitória Cestas (React + TypeScript)
 
-Interface estática para consumir o backend publicado em
-`https://projeto-vitoriacestas-backend.vercel.app`. A página principal apresenta o fluxo
-sugerido, formulário de login e um painel com itens/fornecedores recentes e atalhos de
-cadastro com visual em branco + verde/verde-água.
+Interface SPA em React/TypeScript (transpilada no navegador via Babel standalone) para
+consumir o backend publicado em `https://projeto-vitoriacestas-backend.vercel.app`. A
+aplicação usa um layout com navegação lateral, login modal e páginas de listagem/cadastro
+para itens e fornecedores, além de visões de leitura para clientes, endereços e telefones.
 
 ## Como usar
-1. Instale dependências (opcional; a página funciona abrindo o `index.html`, mas você pode
-   servir com qualquer servidor estático). Para deploy no **Vercel**, basta importar este
-   repositório: o `vercel.json` já cria um proxy de `/api/*` para o backend publicado.
-2. Acesse `index.html` pelo navegador ou via um servidor local.
-3. Informe **email** e **senha** utilizados no backend em "Acesso" e envie.
-4. Após o login, o painel principal mostra os últimos registros e libera os botões para
-   cadastrar item ou fornecedor.
+1. Servir o diretório com qualquer servidor estático (ex.: `python -m http.server 8000`) e
+   acessar `http://localhost:8000`.
+2. Informe **email** e **senha** utilizados no backend no botão de **Login** do cabeçalho ou
+   no chamado exibido na página inicial.
+3. Após autenticar, o painel libera as páginas de Itens, Fornecedores, Clientes, Endereços
+   e Telefones; as duas primeiras permitem cadastro imediato, as demais fazem leitura do
+   backend.
 
 ## Notas sobre as chamadas
-- API base já configurada para `https://projeto-vitoriacestas-backend.vercel.app/api`.
-  - Em produção na Vercel, chamadas usam o caminho relativo `/api` (proxy configurado em
-    `vercel.json`), evitando problemas de CORS.
-  - Para apontar a outro backend (por exemplo, ambiente de staging), defina
-    `window.APP_API_BASE` antes de carregar `main.js`.
+- API base configurada para `https://projeto-vitoriacestas-backend.vercel.app/api`.
+  - Em produção na Vercel, chamadas usam o caminho relativo `/api` (proxy em `vercel.json`).
+  - Para apontar a outro backend, defina `window.APP_API_BASE` antes de carregar o script
+    `app.tsx`.
 - O JWT retornado em `/auth/login` é salvo em `localStorage` (chave `vitoriacestas_token`).
 - Cada chamada protegida envia automaticamente `Authorization: Bearer <token>`.
-- Em caso de resposta HTML inesperada, o frontend avisa com erro de parse.
