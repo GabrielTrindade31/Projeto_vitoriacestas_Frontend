@@ -1,23 +1,19 @@
 # Frontend - Vitória Cestas (React + TypeScript)
 
-Interface SPA em React/TypeScript (transpilada no navegador via Babel standalone) para
-consumir o backend publicado em `https://projeto-vitoriacestas-backend.vercel.app`. A
-aplicação usa um layout com navegação lateral, login modal e páginas de listagem/cadastro
-para itens e fornecedores, além de visões de leitura para clientes, endereços e telefones.
+SPA em React + TypeScript empacotada com **Vite** para publicar sem Babel no navegador.
+O painel mantém navegação lateral, login em modal e páginas de listagem/criação para
+itens e fornecedores, além de visões de leitura para clientes, endereços e telefones.
 
-## Como usar
-1. Servir o diretório com qualquer servidor estático (ex.: `python -m http.server 8000`) e
-   acessar `http://localhost:8000`.
-2. Informe **email** e **senha** utilizados no backend no botão de **Login** do cabeçalho ou
-   no chamado exibido na página inicial.
-3. Após autenticar, o painel libera as páginas de Itens, Fornecedores, Clientes, Endereços
-   e Telefones; as duas primeiras permitem cadastro imediato, as demais fazem leitura do
-   backend.
+## Scripts
+- `npm install`: instala dependências.
+- `npm run dev`: sobe o Vite em modo desenvolvimento (porta padrão 5173).
+- `npm run build`: gera os artefatos estáticos em `dist/` (usados na Vercel).
+- `npm run preview`: serve o build localmente.
 
-## Notas sobre as chamadas
-- API base configurada para `https://projeto-vitoriacestas-backend.vercel.app/api`.
-  - Em produção na Vercel, chamadas usam o caminho relativo `/api` (proxy em `vercel.json`).
-  - Para apontar a outro backend, defina `window.APP_API_BASE` antes de carregar o script
-    `app.tsx`.
-- O JWT retornado em `/auth/login` é salvo em `localStorage` (chave `vitoriacestas_token`).
-- Cada chamada protegida envia automaticamente `Authorization: Bearer <token>`.
+## API e autenticação
+- Base padrão: `https://projeto-vitoriacestas-backend.vercel.app/api`.
+  - Em Vercel, o app usa `/api` (proxy configurado em `vercel.json`).
+  - Para apontar para outra origem, defina a env `VITE_API_BASE` no build ou a global
+    `window.APP_API_BASE` antes de carregar o bundle.
+- O JWT retornado em `/auth/login` fica em `localStorage` (`vitoriacestas_token`).
+- Chamadas autenticadas adicionam `Authorization: Bearer <token>` automaticamente.

@@ -1,7 +1,8 @@
-const { useEffect, useMemo, useState } = React;
+import React, { useEffect, useMemo, useState } from 'react';
 
 const API_BASE =
   (window as any).APP_API_BASE ||
+  import.meta.env.VITE_API_BASE ||
   (window.location.hostname.includes('vercel.app')
     ? '/api'
     : 'https://projeto-vitoriacestas-backend.vercel.app/api');
@@ -756,4 +757,4 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(<App />);
+export default App;
