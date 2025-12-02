@@ -96,7 +96,19 @@ function useApi(token: string | null) {
 
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    const contentType = res.headers.get('content-type') || '';
+    let data: any = {};
+    if (text) {
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(text);
+      } else {
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          data = { message: text };
+        }
+      }
+    }
     if (!res.ok) {
       throw new Error(data?.message || 'Erro ao processar requisição');
     }
@@ -308,13 +320,24 @@ function Dashboard({
   );
 }
 
-function ItemForm({ onSubmit }: { onSubmit: (item: Item) => Promise<void> }) {
+const ITEM_CATEGORIES = [
+  { value: 'materia-prima', label: 'Matéria-prima' },
+  { value: 'produto', label: 'Produto' },
+];
+
+function ItemForm({
+  onSubmit,
+  presetCategory,
+}: {
+  onSubmit: (item: Item) => Promise<void>;
+  presetCategory?: string;
+}) {
   const [form, setForm] = useState<Item>({
     nome: '',
     codigo: '',
     quantidade: 0,
     preco: 0,
-    categoria: '',
+    categoria: presetCategory || ITEM_CATEGORIES[0].value,
     descricao: '',
   });
   const [loading, setLoading] = useState(false);
@@ -326,7 +349,14 @@ function ItemForm({ onSubmit }: { onSubmit: (item: Item) => Promise<void> }) {
     setError(null);
     try {
       await onSubmit({ ...form, quantidade: Number(form.quantidade), preco: Number(form.preco) });
-      setForm({ nome: '', codigo: '', quantidade: 0, preco: 0, categoria: '', descricao: '' });
+      setForm({
+        nome: '',
+        codigo: '',
+        quantidade: 0,
+        preco: 0,
+        categoria: presetCategory || ITEM_CATEGORIES[0].value,
+        descricao: '',
+      });
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar item');
     } finally {
@@ -368,7 +398,20 @@ function ItemForm({ onSubmit }: { onSubmit: (item: Item) => Promise<void> }) {
         </label>
         <label className="form__group">
           <span>Categoria</span>
-          <input value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} />
+          {presetCategory ? (
+            <input value={form.categoria} readOnly />
+          ) : (
+            <select
+              value={form.categoria}
+              onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+            >
+              {ITEM_CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
       </div>
       <label className="form__group">
@@ -440,6 +483,196 @@ function SupplierForm({ onSubmit }: { onSubmit: (supplier: Supplier) => Promise<
   );
 }
 
+function CustomerForm({ onSubmit }: { onSubmit: (customer: Customer) => Promise<void> }) {
+  const [form, setForm] = useState<Customer>({ nome: '', email: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit(form);
+      setForm({ nome: '', email: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao salvar cliente');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>Nome</span>
+          <input value={form.nome} required onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Email</span>
+          <input
+            type="email"
+            value={form.email || ''}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="cliente@exemplo.com"
+          />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Cadastrar cliente'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddressForm({ onSubmit }: { onSubmit: (address: Address) => Promise<void> }) {
+  const [form, setForm] = useState<Address>({ logradouro: '', numero: '', cidade: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit(form);
+      setForm({ logradouro: '', numero: '', cidade: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao salvar endereço');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3">
+        <label className="form__group">
+          <span>Logradouro</span>
+          <input
+            value={form.logradouro || ''}
+            required
+            onChange={(e) => setForm({ ...form, logradouro: e.target.value })}
+          />
+        </label>
+        <label className="form__group">
+          <span>Número</span>
+          <input value={form.numero || ''} onChange={(e) => setForm({ ...form, numero: e.target.value })} />
+        </label>
+        <label className="form__group">
+          <span>Cidade</span>
+          <input value={form.cidade || ''} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Cadastrar endereço'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PhoneForm({ onSubmit }: { onSubmit: (phone: Phone) => Promise<void> }) {
+  const [form, setForm] = useState<Phone>({ numero: '', contato: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit(form);
+      setForm({ numero: '', contato: '' });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao salvar telefone');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--2">
+        <label className="form__group">
+          <span>Número</span>
+          <input
+            value={form.numero || ''}
+            required
+            onChange={(e) => setForm({ ...form, numero: e.target.value })}
+            placeholder="(00) 00000-0000"
+          />
+        </label>
+        <label className="form__group">
+          <span>Contato</span>
+          <input
+            value={form.contato || ''}
+            onChange={(e) => setForm({ ...form, contato: e.target.value })}
+            placeholder="Nome do responsável"
+          />
+        </label>
+      </div>
+      {error && <p className="form__error">{error}</p>}
+      <div className="form__actions">
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Cadastrar telefone'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ItemCategorySection({
+  title,
+  category,
+  items,
+  onCreate,
+}: {
+  title: string;
+  category: string;
+  items: Item[];
+  onCreate: (item: Item) => Promise<void>;
+}) {
+  const filtered = items.filter((item) => (item.categoria || '').toLowerCase() === category);
+
+  return (
+    <section className="panel__section">
+      <div className="panel__section-header">
+        <div>
+          <h3>{title}</h3>
+          <p className="muted">Cadastre e consulte somente {title.toLowerCase()}.</p>
+        </div>
+        <span className="badge">{filtered.length} cadastros</span>
+      </div>
+      <ItemForm onSubmit={onCreate} presetCategory={category} />
+      {filtered.length ? (
+        <ul className="list">
+          {filtered.map((item) => (
+            <li key={`${item.codigo}-${category}`} className="list__item">
+              <div>
+                <strong>{item.nome}</strong>
+                <span className="muted">{item.codigo}</span>
+              </div>
+              <div className="list__actions">
+                <span className="badge">Qtd: {item.quantidade}</span>
+                <span className="badge badge--soft">R$ {Number(item.preco || 0).toFixed(2)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState message={`Nenhum item de ${title.toLowerCase()} cadastrado.`} />
+      )}
+    </section>
+  );
+}
+
 function ItemsPage({
   items,
   onCreate,
@@ -452,31 +685,16 @@ function ItemsPage({
       <header className="panel__header">
         <div>
           <h1>Itens</h1>
-          <p className="muted">Cadastre e consulte rapidamente.</p>
+          <p className="muted">Cadastre matérias-primas e produtos separadamente.</p>
         </div>
       </header>
-      <ItemForm onSubmit={onCreate} />
-      <section className="panel__section">
-        <h3>Últimos itens</h3>
-        {items.length ? (
-          <ul className="list">
-            {items.map((item) => (
-              <li key={item.codigo} className="list__item">
-                <div>
-                  <strong>{item.nome}</strong>
-                  <span className="muted">{item.codigo}</span>
-                </div>
-                <div className="list__actions">
-                  <span className="badge">Qtd: {item.quantidade}</span>
-                  <span className="badge badge--soft">R$ {Number(item.preco || 0).toFixed(2)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState message="Nenhum item cadastrado." />
-        )}
-      </section>
+      <ItemCategorySection
+        title="Matéria-prima"
+        category="materia-prima"
+        items={items}
+        onCreate={onCreate}
+      />
+      <ItemCategorySection title="Produto" category="produto" items={items} onCreate={onCreate} />
     </div>
   );
 }
@@ -660,6 +878,33 @@ function App() {
     setSuppliers((prev) => [...prev, res.data]);
   };
 
+  const handleCreateCustomer = async (payload: Customer) => {
+    const res = await request<Customer>('/customers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Cliente salvo com sucesso.');
+    setCustomers((prev) => [...prev, res.data]);
+  };
+
+  const handleCreateAddress = async (payload: Address) => {
+    const res = await request<Address>('/addresses', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Endereço salvo com sucesso.');
+    setAddresses((prev) => [...prev, res.data]);
+  };
+
+  const handleCreatePhone = async (payload: Phone) => {
+    const res = await request<Phone>('/phones', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setFeedback('Telefone salvo com sucesso.');
+    setPhones((prev) => [...prev, res.data]);
+  };
+
   const content = useMemo(() => {
     if (!authenticated) {
       return (
@@ -689,9 +934,10 @@ function App() {
             <header className="panel__header">
               <div>
                 <h1>Clientes</h1>
-                <p className="muted">Listagem carregada direto do backend.</p>
+                <p className="muted">Listagem e cadastro carregados direto do backend.</p>
               </div>
             </header>
+            <CustomerForm onSubmit={handleCreateCustomer} />
             <SimpleList
               title="Clientes"
               items={customers}
@@ -706,9 +952,10 @@ function App() {
             <header className="panel__header">
               <div>
                 <h1>Endereços</h1>
-                <p className="muted">Verifique rapidamente cadastros existentes.</p>
+                <p className="muted">Verifique e cadastre rapidamente novos endereços.</p>
               </div>
             </header>
+            <AddressForm onSubmit={handleCreateAddress} />
             <SimpleList
               title="Endereços"
               items={addresses}
@@ -723,9 +970,10 @@ function App() {
             <header className="panel__header">
               <div>
                 <h1>Telefones</h1>
-                <p className="muted">Checagens rápidas para suporte.</p>
+                <p className="muted">Checagens rápidas para suporte com cadastro.</p>
               </div>
             </header>
+            <PhoneForm onSubmit={handleCreatePhone} />
             <SimpleList
               title="Telefones"
               items={phones}
