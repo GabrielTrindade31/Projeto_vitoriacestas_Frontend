@@ -17,11 +17,19 @@ fornecedores, clientes, endereços e telefones seguindo o esquema do banco.
     `window.APP_API_BASE` antes de carregar o bundle.
 - O JWT retornado em `/auth/login` fica em `localStorage` (`vitoriacestas_token`).
 - Chamadas autenticadas adicionam `Authorization: Bearer <token>` automaticamente.
-- As rotas utilizadas no front seguem os nomes das tabelas: `/addresses`, `/customers`,
-  `/suppliers`, `/phones`, `/products`, `/materials` e `/auth/login`.
 - Upload de imagens usa `/upload` com `multipart/form-data` (FormData). Caso a rota não
   exista no backend, o front mantém apenas a pré-visualização local do blob e exibe um
   lembrete para habilitar o endpoint.
+
+### Endpoints esperados pelo frontend
+- Autenticação: `POST /auth/login`.
+- Dados base: `GET /addresses`, `POST /addresses`; `GET /customers`, `POST /customers`;
+  `GET /suppliers`, `POST /suppliers`; `GET /phones`, `POST /phones`.
+- Itens: `GET /products`, `POST /products`; `GET /materials`, `POST /materials`;
+  upload opcional em `POST /upload` (imagem Blob).
+- Operações: `GET /manufaturas`, `POST /manufaturas`; `GET /entregas-material`,
+  `POST /entregas-material`; `GET /pedidos`, `POST /pedidos`; `GET /envios`,
+  `POST /envios`; `GET /feedback`, `POST /feedback`.
 
 ## Ordem e formato dos cadastros
 - Endereços (rua, número, CEP) são obrigatórios para clientes e opcionais para fornecedores.

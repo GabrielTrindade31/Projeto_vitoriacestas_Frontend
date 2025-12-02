@@ -3,9 +3,9 @@
   --card: #ffffff;
   --muted: #6b7280;
   --text: #0f172a;
-  --primary: #1bd5bb;
-  --primary-strong: #12a796;
-  --accent: #1bd5bb;
+  --primary: #1fe4ce;
+  --primary-strong: #14b6a2;
+  --accent: #1fe4ce;
   --border: #dfe7ef;
   --shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
 }
@@ -68,20 +68,20 @@ textarea {
   text-align: left;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #e5f0ff;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(31, 228, 206, 0.16), rgba(31, 228, 206, 0.08));
+  color: #d8f9f4;
+  border: 1px solid rgba(31, 228, 206, 0.3);
   font-weight: 700;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, color 140ms ease, background 140ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease, color 140ms ease, background 140ms ease, border-color 140ms ease;
 }
 
 .sidebar__link:hover,
 .sidebar__link.is-active {
-  background: rgba(255, 255, 255, 0.14);
-  color: #0e1b2c;
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 10px 30px rgba(15, 183, 161, 0.38);
+  background: linear-gradient(135deg, #2af1d8, #16cbb3);
+  color: #0b1a28;
+  border-color: rgba(31, 228, 206, 0.55);
+  box-shadow: 0 10px 30px rgba(31, 228, 206, 0.48);
   transform: translateY(-1px);
 }
 
@@ -196,20 +196,20 @@ textarea {
 }
 
 .btn {
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: #fff;
-  border: none;
+  border: 1px solid rgba(31, 228, 206, 0.5);
   padding: 10px 14px;
   border-radius: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
 }
 
 .btn:hover {
-  background: var(--primary-strong);
+  filter: brightness(0.94);
   transform: translateY(-1px);
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 28px rgba(31, 228, 206, 0.35);
 }
 
 .btn--ghost {
