@@ -1,13 +1,13 @@
 :root {
-  --bg: #f4f7fb;
+  --bg: #f7f8fb;
   --card: #ffffff;
-  --muted: #4b5563;
+  --muted: #6b7280;
   --text: #0f172a;
   --primary: #0f9d58;
   --primary-strong: #0b7e46;
   --accent: #0fb7a1;
-  --border: #d1e6d8;
-  --shadow: 0 10px 30px rgba(15, 157, 88, 0.12);
+  --border: #dfe7ef;
+  --shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -30,31 +30,35 @@ textarea {
 
 .layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px 1fr;
   min-height: 100vh;
+  background: radial-gradient(circle at 10% 10%, rgba(15, 183, 161, 0.04), transparent 30%), var(--bg);
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #0fb7a1 0%, #0aa68f 50%, #0f9d58 100%);
-  color: #e7fffa;
+  background: #0e1b2c;
+  color: #e5f0ff;
   padding: 24px 18px;
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 16px;
-  border-right: 1px solid rgba(209, 230, 216, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.sidebar__brand {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+.sidebar__logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, #1bd5bb, #0f9d58);
+  color: #0e1b2c;
+  box-shadow: 0 14px 36px rgba(27, 213, 187, 0.25);
 }
 
-.sidebar nav {
+.sidebar__nav {
   display: grid;
   gap: 10px;
 }
@@ -63,21 +67,21 @@ textarea {
   width: 100%;
   text-align: left;
   padding: 12px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
-  color: #e7fffa;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5f0ff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   font-weight: 700;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease, color 140ms ease, background 140ms ease;
 }
 
 .sidebar__link:hover,
 .sidebar__link.is-active {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.16));
-  color: #0f172a;
-  border-color: rgba(255, 255, 255, 0.48);
-  box-shadow: 0 10px 24px rgba(15, 183, 161, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+  color: #0e1b2c;
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 10px 30px rgba(15, 183, 161, 0.38);
   transform: translateY(-1px);
 }
 
@@ -87,14 +91,14 @@ textarea {
 }
 
 .content {
-  padding: 24px;
+  padding: 26px;
 }
 
 .panel {
   background: var(--card);
-  border-radius: 16px;
+  border-radius: 20px;
   border: 1px solid var(--border);
-  padding: 20px;
+  padding: 22px;
   box-shadow: var(--shadow);
 }
 
@@ -114,24 +118,37 @@ textarea {
   margin-top: 18px;
 }
 
+.panel__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .grid {
   display: grid;
   gap: 12px;
 }
 
 .grid--2 {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .grid--3 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.grid--4 {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.kpi {
-  padding: 14px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(15, 183, 161, 0.08), rgba(15, 157, 88, 0.06));
+.card {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(15, 183, 161, 0.08), rgba(15, 157, 88, 0.05));
+  box-shadow: 0 10px 24px rgba(15, 183, 161, 0.12);
 }
 
 .list {
@@ -142,13 +159,16 @@ textarea {
   gap: 10px;
 }
 
+.list--bordered .list__item {
+  border: 1px solid var(--border);
+}
+
 .list__item {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
 }
@@ -180,7 +200,7 @@ textarea {
   color: #fff;
   border: none;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
@@ -193,7 +213,7 @@ textarea {
 }
 
 .btn--ghost {
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--text);
   border: 1px solid var(--border);
 }
@@ -215,6 +235,20 @@ textarea {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+.form__group select {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.form__group input:focus,
+.form__group textarea:focus,
+.form__group select:focus {
+  outline: 2px solid rgba(15, 157, 88, 0.24);
+  border-color: var(--primary);
 }
 
 .form__actions {
@@ -267,6 +301,56 @@ textarea {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.table {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 0.8fr 1fr;
+  padding: 12px 14px;
+  background: #fff;
+  align-items: center;
+  gap: 10px;
+}
+
+.table__head {
+  background: #f0f4f9;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.table__cell {
+  display: block;
+}
+
+.upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(15, 157, 88, 0.08);
+  color: var(--primary-strong);
+  font-weight: 700;
+  border: 1px dashed var(--primary);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.upload input {
+  display: none;
+}
+
+.upload__preview {
+  margin-top: 10px;
+  max-width: 160px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
 }
 
 @media (max-width: 900px) {

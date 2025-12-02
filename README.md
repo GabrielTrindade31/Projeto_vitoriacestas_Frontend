@@ -1,8 +1,8 @@
 # Frontend - Vitória Cestas (React + TypeScript)
 
-SPA em React + TypeScript empacotada com **Vite** para publicar sem Babel no navegador.
-O painel mantém navegação lateral, login em modal e páginas de listagem/criação para
-itens e fornecedores, além de visões de leitura para clientes, endereços e telefones.
+SPA em React + TypeScript empacotada com **Vite**. O painel mantém navegação lateral,
+login via modal e páginas de listagem/criação para produtos, matérias-primas,
+fornecedores, clientes, endereços e telefones seguindo o esquema do banco.
 
 ## Scripts
 - `npm install`: instala dependências.
@@ -17,3 +17,18 @@ itens e fornecedores, além de visões de leitura para clientes, endereços e te
     `window.APP_API_BASE` antes de carregar o bundle.
 - O JWT retornado em `/auth/login` fica em `localStorage` (`vitoriacestas_token`).
 - Chamadas autenticadas adicionam `Authorization: Bearer <token>` automaticamente.
+- As rotas utilizadas no front seguem os nomes das tabelas: `/addresses`, `/customers`,
+  `/suppliers`, `/phones`, `/products`, `/materials` e `/auth/login`.
+- Upload de imagens usa `/upload` com `multipart/form-data` (FormData). Caso a rota não
+  exista no backend, o front mantém apenas a pré-visualização local do blob e exibe um
+  lembrete para habilitar o endpoint.
+
+## Ordem e formato dos cadastros
+- Endereços (rua, número, CEP) são obrigatórios para clientes e opcionais para fornecedores.
+- Clientes: nome, data de nascimento e um identificador (CPF ou CNPJ) + endereço.
+- Telefones precisam de cliente vinculado, DDD (3 dígitos) e número (9 dígitos) e são
+  exibidos como `+55 (DDD) número-numero`.
+- Fornecedores exigem CNPJ, razão social e contato; telefone e endereço são opcionais.
+- Produtos: código único, categoria, quantidade, preço numérico (R$) e fornecedor opcional.
+- Matérias-primas: nome obrigatório mais campos de tipo, custo, validade, tamanho,
+  material e acessório conforme a tabela `materia_prima`.
