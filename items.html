@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitória Cestas | Itens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-page="items">
+  <div class="app-frame">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand-dot"></div>
+        <div>
+          <strong>Vitória Cestas</strong>
+          <small>Backoffice</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <a class="nav__item" href="index.html"><span>Início</span></a>
+        <a class="nav__item nav__item--active" href="items.html"><span>Itens</span></a>
+        <a class="nav__item" href="suppliers.html"><span>Fornecedores</span></a>
+        <a class="nav__item" href="customers.html"><span>Clientes</span></a>
+        <a class="nav__item" href="addresses.html"><span>Endereços</span></a>
+        <a class="nav__item" href="phones.html"><span>Telefones</span></a>
+      </nav>
+      <div class="sidebar__cta">
+        <p>Exportar tabela</p>
+        <button id="docsBtn" class="btn btn--ghost">Gerar .xlsx</button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <div class="topbar">
+        <span class="topbar__hint">Cadastre itens, faça upload de imagens e exporte para Excel.</span>
+        <button id="authToggle" class="btn btn--login">Login</button>
+      </div>
+
+      <main class="layout">
+        <section class="card card--wide">
+          <div class="card__header card__header--row">
+            <div>
+              <p class="hero__eyebrow">Dashboard por item</p>
+              <h2>Cadastro e monitoramento</h2>
+              <p class="muted">Escolha a visualização sem mudar o tamanho da tela. Tudo permanece responsivo.</p>
+            </div>
+              <div class="item-actions" style="gap: 12px; flex-wrap: wrap;">
+                <div class="view-toggle" role="tablist" aria-label="Selecionar modo de visualização">
+                  <button class="is-active" data-target="tab-register" role="tab" aria-selected="true">Cadastro</button>
+                  <button data-target="tab-detail" role="tab" aria-selected="false">Página do item</button>
+                </div>
+                <button class="btn btn--ghost" id="openAlertsModal">Alertas</button>
+                <button class="btn btn--ghost" id="exportItems">Baixar Excel</button>
+              </div>
+          </div>
+
+          <div id="tab-register" class="tab-panel tab-panel--active">
+            <div class="item-grid">
+              <form id="itemForm" class="form">
+                <h3>Cadastro de item</h3>
+                <div class="form__grid">
+                  <label>
+                    Código
+                    <input name="codigo" required placeholder="Ex: CX-001" />
+                  </label>
+                  <label>
+                    Nome
+                    <input name="nome" required placeholder="Cesta Básica" />
+                  </label>
+                  <label>
+                    Quantidade
+                    <input name="quantidade" type="number" min="0" required />
+                  </label>
+                  <label>
+                    Preço
+                    <input name="preco" type="number" min="0" step="0.01" required />
+                  </label>
+                  <label>
+                    Categoria
+                    <input name="categoria" placeholder="Básicos" />
+                  </label>
+                  <label>
+                    Fornecedor ID
+                    <input name="fornecedorId" type="number" min="1" placeholder="Opcional" />
+                  </label>
+                  <label class="form__full">
+                    Descrição
+                    <textarea name="descricao" rows="2" placeholder="Notas rápidas do item"></textarea>
+                  </label>
+                  <label class="form__full">
+                    Imagem (opcional)
+                    <input id="itemImage" type="file" accept="image/*" />
+                  </label>
+                  <div id="itemImagePreview" class="image-preview">Nenhuma imagem selecionada.</div>
+                </div>
+                <button class="btn btn--primary" type="submit">Salvar item</button>
+              </form>
+
+              <div class="stack">
+                <div class="stack__header">
+                  <div>
+                    <p class="hero__eyebrow">Itens carregados</p>
+                    <h3 id="itemsCount">0</h3>
+                  </div>
+                  <button class="btn btn--ghost" id="refreshItems">Atualizar</button>
+                </div>
+                <div id="itemsBoard" class="list list--wide">Nenhum item carregado.</div>
+              </div>
+            </div>
+
+          </div>
+
+          <div id="tab-detail" class="tab-panel">
+            <div class="item-grid">
+              <div class="stack">
+                <div class="stack__header">
+                  <div>
+                    <p class="hero__eyebrow">Seleção</p>
+                    <h3>Itens para detalhar</h3>
+                  </div>
+                  <button class="btn btn--ghost" id="exportDetail">Exportar tabela atual</button>
+                </div>
+                <div id="itemsBoardDetail" class="list list--wide">Nenhum item carregado.</div>
+              </div>
+
+              <div class="item-detail" id="itemDetail">
+                <div class="item-detail__main">
+                  <p class="muted">Selecione um item na lista para ver o detalhe.</p>
+                  <div class="item-detail__grid">
+                    <div>
+                      <p class="hero__eyebrow">Nome</p>
+                      <h3 id="detailName">–</h3>
+                    </div>
+                    <div>
+                      <p class="hero__eyebrow">Código</p>
+                      <h3 id="detailCode">–</h3>
+                    </div>
+                    <div>
+                      <p class="hero__eyebrow">Quantidade</p>
+                      <h3 id="detailQtd">–</h3>
+                    </div>
+                    <div>
+                      <p class="hero__eyebrow">Preço</p>
+                      <h3 id="detailPrice">–</h3>
+                    </div>
+                    <div>
+                      <p class="hero__eyebrow">Total</p>
+                      <h3 id="detailTotal">–</h3>
+                    </div>
+                    <div>
+                      <p class="hero__eyebrow">Categoria</p>
+                      <h3 id="detailCategory">–</h3>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="hero__eyebrow">Descrição</p>
+                    <p id="detailDescription" class="muted">Nenhuma descrição.</p>
+                  </div>
+                </div>
+                <div class="item-detail__image" id="detailImage">Nenhuma imagem enviada.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <dialog id="alertsModal" class="modal">
+    <div class="modal__header">
+      <div>
+        <p class="hero__eyebrow">Configuração</p>
+        <h3>Alertas de estoque mínimo</h3>
+        <p class="muted">Crie e pause alertas sem sair da tela atual.</p>
+      </div>
+      <button id="closeAlertsModal" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <form id="thresholdForm" class="form form--inline">
+      <input name="codigo" placeholder="Código do item" required />
+      <input name="limite" type="number" min="0" placeholder="Estoque mínimo" required />
+      <button class="btn btn--primary" type="submit">Salvar alerta</button>
+    </form>
+    <div class="stack__header" style="margin: 12px 0 8px;">
+      <p class="muted">Alertas ativos e pendentes</p>
+      <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
+    </div>
+    <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
+  </dialog>
+  <script src="main.js"></script>
+</body>
+</html>

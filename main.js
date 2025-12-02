@@ -3,7 +3,6 @@ const API_BASE =
   (window.location.hostname.includes('vercel.app')
     ? '/api'
     : 'https://projeto-vitoriacestas-backend.vercel.app/api');
-const DOCS_URL = `${API_BASE.replace(/\/api$/, '')}/docs`;
 const storageKey = 'vitoriacestas_token';
 const thresholdStorageKey = 'vitoriacestas_thresholds';
 
@@ -13,20 +12,22 @@ const chartState = {
 
 const state = {
   token: localStorage.getItem(storageKey),
-  currentPage: 'dashboardPage',
   latestItems: [],
+  latestSuppliers: [],
+  selectedItem: null,
+  detailedItem: null,
   alertsPaused: false,
   visualsVisible: false,
   lastAlertHash: '',
+  itemImagePreviewUrl: '',
 };
 
 const elements = {
   loginForm: document.getElementById('loginForm'),
-  loginCard: document.getElementById('loginCard'),
-  primaryLoginBtn: document.getElementById('primaryLoginBtn'),
   docsBtn: document.getElementById('docsBtn'),
+  docsBtnHeader: document.getElementById('docsBtnHeader'),
   authStatus: document.getElementById('authStatus'),
-  appShell: document.getElementById('appShell'),
+  authToggle: document.getElementById('authToggle'),
   itemsList: document.getElementById('itemsList'),
   suppliersList: document.getElementById('suppliersList'),
   refreshItems: document.getElementById('refreshItems'),
@@ -40,14 +41,34 @@ const elements = {
   alertsList: document.getElementById('alertsList'),
   toggleAlerts: document.getElementById('toggleAlerts'),
   itemForm: document.getElementById('itemForm'),
+  itemImage: document.getElementById('itemImage'),
+  itemImagePreview: document.getElementById('itemImagePreview'),
+  itemsBoard: document.getElementById('itemsBoard'),
+  itemsBoardDetail: document.getElementById('itemsBoardDetail'),
+  itemsCount: document.getElementById('itemsCount'),
+  selectedItemName: document.getElementById('selectedItemName'),
+  selectedItemCode: document.getElementById('selectedItemCode'),
+  selectedItemQtd: document.getElementById('selectedItemQtd'),
+  selectedItemPrice: document.getElementById('selectedItemPrice'),
+  selectedItemTotal: document.getElementById('selectedItemTotal'),
+  detailName: document.getElementById('detailName'),
+  detailCode: document.getElementById('detailCode'),
+  detailQtd: document.getElementById('detailQtd'),
+  detailPrice: document.getElementById('detailPrice'),
+  detailTotal: document.getElementById('detailTotal'),
+  detailCategory: document.getElementById('detailCategory'),
+  detailDescription: document.getElementById('detailDescription'),
+  detailImage: document.getElementById('detailImage'),
+  exportDetail: document.getElementById('exportDetail'),
+  exportItems: document.getElementById('exportItems'),
   supplierForm: document.getElementById('supplierForm'),
   customerForm: document.getElementById('customerForm'),
   addressForm: document.getElementById('addressForm'),
   phoneForm: document.getElementById('phoneForm'),
   thresholdForm: document.getElementById('thresholdForm'),
-  logoutBtn: document.getElementById('logoutBtn'),
-  pages: document.querySelectorAll('[data-page]'),
-  pageTabs: document.querySelectorAll('.tabs__btn[data-page-target]'),
+  alertsModal: document.getElementById('alertsModal'),
+  openAlertsModal: document.getElementById('openAlertsModal'),
+  closeAlertsModal: document.getElementById('closeAlertsModal'),
   toast: document.getElementById('toast'),
 };
 
@@ -77,6 +98,15 @@ function attachMask(input, formatter) {
   if (!input) return;
   input.addEventListener('input', () => {
     input.value = formatter(input.value);
+  });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 }
 
@@ -112,18 +142,14 @@ function setToken(token) {
 
 function syncAuthState() {
   const authenticated = Boolean(state.token);
-  elements.authStatus.textContent = authenticated ? 'Autenticado' : 'Não autenticado';
-  elements.authStatus.style.background = authenticated
-    ? 'rgba(15, 157, 88, 0.16)'
-    : 'rgba(15, 23, 42, 0.06)';
-  elements.appShell.hidden = !authenticated;
-  elements.pages.forEach((page) => {
-    page.hidden = !authenticated || page.id !== state.currentPage;
-  });
-  if (!authenticated) {
-    elements.itemsList.textContent = 'Faça login para carregar os itens.';
-    elements.suppliersList.textContent = 'Faça login para carregar os fornecedores.';
-    state.currentPage = 'dashboardPage';
+  if (elements.authStatus) {
+    elements.authStatus.textContent = authenticated ? 'Autenticado' : 'Não autenticado';
+    elements.authStatus.style.background = authenticated
+      ? 'rgba(15, 157, 88, 0.16)'
+      : 'rgba(15, 23, 42, 0.06)';
+  }
+  if (elements.authToggle) {
+    elements.authToggle.textContent = authenticated ? 'Logout' : 'Login';
   }
 }
 
@@ -229,6 +255,89 @@ function renderList(container, items, type) {
   });
 }
 
+function updateSelectedItem(item) {
+  if (!elements.selectedItemName) return;
+  state.selectedItem = item || null;
+  if (!item) {
+    elements.selectedItemName.textContent = 'Selecione um item';
+    elements.selectedItemCode.textContent = 'Nenhum código carregado';
+    elements.selectedItemQtd.textContent = '–';
+    elements.selectedItemPrice.textContent = '–';
+    elements.selectedItemTotal.textContent = '–';
+    return;
+  }
+  elements.selectedItemName.textContent = item.nome || 'Sem nome';
+  elements.selectedItemCode.textContent = item.codigo || 'Sem código';
+  elements.selectedItemQtd.textContent = item.quantidade ?? '–';
+  elements.selectedItemPrice.textContent = `R$ ${Number(item.preco || 0).toFixed(2)}`;
+  elements.selectedItemTotal.textContent = `R$ ${(
+    (Number(item.quantidade) || 0) * (Number(item.preco) || 0)
+  ).toFixed(2)}`;
+}
+
+
+function openItemDetail(item) {
+  if (!elements.detailName) return;
+  state.detailedItem = item;
+  elements.detailName.textContent = item.nome || 'Sem nome';
+  elements.detailCode.textContent = item.codigo || 'Código não disponível';
+  elements.detailQtd.textContent = item.quantidade ?? '–';
+  elements.detailPrice.textContent = `R$ ${Number(item.preco || 0).toFixed(2)}`;
+  elements.detailTotal.textContent = `R$ ${
+    (Number(item.quantidade) || 0) * (Number(item.preco) || 0)
+  ).toFixed(2)}`;
+  elements.detailCategory.textContent = item.categoria || 'Sem categoria';
+  elements.detailDescription.textContent = item.descricao || 'Sem descrição';
+  if (item.imagemBlob || state.itemImagePreviewUrl) {
+    const img = document.createElement('img');
+    img.src = item.imagemBlob || state.itemImagePreviewUrl;
+    img.alt = item.nome || 'Imagem do item';
+    elements.detailImage.innerHTML = '';
+    elements.detailImage.appendChild(img);
+  } else {
+    elements.detailImage.textContent = 'Nenhuma imagem enviada.';
+  }
+}
+
+
+function renderItemsBoard(items = []) {
+  if (!elements.itemsBoard && !elements.itemsBoardDetail) return;
+  if (elements.itemsCount) {
+    elements.itemsCount.textContent = items.length;
+  }
+  const boards = [elements.itemsBoard, elements.itemsBoardDetail].filter(Boolean);
+  boards.forEach((board) => {
+    if (!items.length) {
+      board.textContent = 'Nenhum item carregado.';
+      return;
+    }
+    board.innerHTML = '';
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'list__item list__item--action';
+      row.innerHTML = `
+        <div>
+          <strong>${item.nome}</strong>
+          <span class="muted">${item.codigo}</span>
+        </div>
+        <div class="list__actions">
+          <span class="badge">Qtd: ${item.quantidade}</span>
+          <button class="btn btn--ghost btn--xs" data-code="${item.codigo}">Ver página</button>
+        </div>
+      `;
+      row.querySelector('button').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openItemDetail(item);
+      });
+      row.addEventListener('click', () => updateSelectedItem(item));
+      board.appendChild(row);
+    });
+  });
+  if (items.length) {
+    updateSelectedItem(items[0]);
+  }
+}
+
 function buildCategoryDataset(items = []) {
   const buckets = {};
   items.forEach((item) => {
@@ -274,22 +383,8 @@ function buildTrendDataset(items = []) {
   };
 }
 
-function setActivePage(targetId) {
-  if (!state.token) {
-    showToast('Faça login para navegar pelas páginas protegidas.', 'error');
-    return;
-  }
-  state.currentPage = targetId;
-  elements.pages.forEach((page) => {
-    page.hidden = page.id !== targetId;
-  });
-  elements.pageTabs.forEach((btn) => {
-    const isActive = btn.dataset.pageTarget === targetId;
-    btn.classList.toggle('tabs__btn--active', isActive);
-  });
-}
-
 function renderKPIs(items = [], alerts = []) {
+  if (!elements.kpiItemsTotal || !elements.kpiTotalValue || !elements.kpiAlertsCount) return;
   elements.kpiItemsTotal.textContent = items.length;
   const totalValue = items.reduce(
     (acc, item) => acc + (Number(item.quantidade) || 0) * (Number(item.preco) || 0),
@@ -303,6 +398,7 @@ function renderKPIs(items = [], alerts = []) {
 }
 
 function renderAlerts(alerts = []) {
+  if (!elements.alertsList) return;
   if (!alerts.length) {
     elements.alertsList.textContent = 'Nenhum alerta pendente.';
     renderKPIs(state.latestItems, alerts);
@@ -341,8 +437,10 @@ function evaluateAlerts(items = []) {
 
 function renderCharts() {
   if (!state.visualsVisible || !state.latestItems.length) return;
-  chartManager.render('stockByCategory', 'bar', buildCategoryDataset(state.latestItems));
-  chartManager.render('stockTrend', 'line', buildTrendDataset(state.latestItems));
+  if (elements.stockByCategory && elements.stockTrend) {
+    chartManager.render('stockByCategory', 'bar', buildCategoryDataset(state.latestItems));
+    chartManager.render('stockTrend', 'line', buildTrendDataset(state.latestItems));
+  }
 }
 
 function queueVisualRefresh() {
@@ -367,6 +465,30 @@ function setupVisualizationLazyLoad() {
   observer.observe(elements.dashboardVisuals);
 }
 
+function setupTabPanels() {
+  const toggles = Array.from(document.querySelectorAll('.view-toggle button'));
+  const panels = Array.from(document.querySelectorAll('.tab-panel'));
+  if (!toggles.length || !panels.length) return;
+
+  const activate = (targetId) => {
+    toggles.forEach((btn) => {
+      const isActive = btn.dataset.target === targetId;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle('tab-panel--active', panel.id === targetId);
+    });
+  };
+
+  toggles.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      if (targetId) activate(targetId);
+    });
+  });
+}
+
 function startAlertCron() {
   if (alertIntervalId) clearInterval(alertIntervalId);
   alertIntervalId = setInterval(() => {
@@ -377,10 +499,17 @@ function startAlertCron() {
 }
 
 async function loadItems() {
+  if (!state.token) {
+    showToast('Faça login para carregar itens.', 'error');
+    return;
+  }
   try {
     const { data } = await request('/items');
     state.latestItems = data || [];
-    renderList(elements.itemsList, state.latestItems, 'item');
+    if (elements.itemsList) {
+      renderList(elements.itemsList, state.latestItems, 'item');
+    }
+    renderItemsBoard(state.latestItems);
     queueVisualRefresh();
     startAlertCron();
   } catch (error) {
@@ -389,9 +518,16 @@ async function loadItems() {
 }
 
 async function loadSuppliers() {
+  if (!state.token) {
+    showToast('Faça login para carregar fornecedores.', 'error');
+    return;
+  }
   try {
     const { data } = await request('/suppliers');
-    renderList(elements.suppliersList, data, 'supplier');
+    state.latestSuppliers = data || [];
+    if (elements.suppliersList) {
+      renderList(elements.suppliersList, state.latestSuppliers, 'supplier');
+    }
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -413,9 +549,8 @@ async function handleLogin(event) {
     if (token) {
       setToken(token);
       showToast('Login realizado com sucesso!');
-      elements.appShell.hidden = false;
       await Promise.all([loadItems(), loadSuppliers()]);
-      setActivePage('dashboardPage');
+      window.location.href = 'index.html';
     } else {
       showToast('Token não retornado pela API.', 'error');
     }
@@ -436,6 +571,12 @@ async function handleItemSubmit(event) {
   payload.preco = Number(payload.preco);
   payload.fornecedorId = payload.fornecedorId ? Number(payload.fornecedorId) : null;
 
+  const file = elements.itemImage?.files?.[0];
+  if (file) {
+    payload.imagemBlob = await readFileAsDataUrl(file);
+    payload.imagemNome = file.name;
+  }
+
   try {
     await request('/items', {
       method: 'POST',
@@ -443,6 +584,9 @@ async function handleItemSubmit(event) {
     });
     showToast('Item cadastrado com sucesso!');
     form.reset();
+    if (elements.itemImagePreview) {
+      elements.itemImagePreview.textContent = 'Nenhuma imagem anexada.';
+    }
     loadItems();
   } catch (error) {
     showToast(error.message, 'error');
@@ -607,62 +751,158 @@ function handleExportClick(event) {
   chartManager.export(id, format);
 }
 
-function addEventListeners() {
-  elements.primaryLoginBtn.addEventListener('click', () => {
-    elements.loginCard.scrollIntoView({ behavior: 'smooth' });
-  });
-
-  elements.docsBtn.addEventListener('click', () => {
-    window.open(DOCS_URL, '_blank');
-  });
-
-  elements.loginForm.addEventListener('submit', handleLogin);
-  elements.refreshItems.addEventListener('click', loadItems);
-  elements.refreshSuppliers.addEventListener('click', loadSuppliers);
-
-  elements.itemForm.addEventListener('submit', handleItemSubmit);
-  elements.supplierForm.addEventListener('submit', handleSupplierSubmit);
-  elements.customerForm.addEventListener('submit', handleCustomerSubmit);
-  elements.addressForm.addEventListener('submit', handleAddressSubmit);
-  elements.phoneForm.addEventListener('submit', handlePhoneSubmit);
-  elements.thresholdForm.addEventListener('submit', handleThresholdSubmit);
-
-  elements.logoutBtn.addEventListener('click', () => {
-    setToken(null);
-    showToast('Sessão encerrada.');
-  });
-
-  document.querySelectorAll('[data-page-target]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      setActivePage(btn.dataset.pageTarget);
+function handleImagePreview() {
+  const file = elements.itemImage?.files?.[0];
+  if (!file) {
+    elements.itemImagePreview.textContent = 'Nenhuma imagem anexada.';
+    return;
+  }
+  readFileAsDataUrl(file)
+    .then((dataUrl) => {
+      state.itemImagePreviewUrl = dataUrl;
+      elements.itemImagePreview.innerHTML = `<img src="${dataUrl}" alt="Pré-visualização do item" />`;
+    })
+    .catch(() => {
+      elements.itemImagePreview.textContent = 'Não foi possível ler o arquivo.';
     });
-  });
+}
+
+function exportItemsToExcel(items = state.latestItems, filename = 'estoque.xlsx') {
+  if (!items || !items.length) {
+    showToast('Nada para exportar ainda.', 'error');
+    return;
+  }
+  const header = ['Código', 'Nome', 'Categoria', 'Quantidade', 'Preço'];
+  const rows = items.map((item) => [
+    item.codigo,
+    item.nome,
+    item.categoria || 'Sem categoria',
+    item.quantidade,
+    item.preco,
+  ]);
+  const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportTableFromContext() {
+  const page = document.body.dataset.page || 'home';
+  switch (page) {
+    case 'home':
+      exportItemsToExcel(state.latestItems, 'estoque.xlsx');
+      break;
+    case 'items':
+      if (state.detailedItem) {
+        exportItemsToExcel([state.detailedItem], `${state.detailedItem.codigo || 'item'}.xlsx`);
+      } else {
+        exportItemsToExcel(state.latestItems, 'estoque.xlsx');
+      }
+      break;
+    case 'suppliers': {
+      if (!state.latestSuppliers.length) {
+        showToast('Nenhum fornecedor carregado para exportar.', 'error');
+        break;
+      }
+      const header = ['Razão Social', 'Contato', 'Email', 'Telefone'];
+      const rows = state.latestSuppliers.map((supplier) => [
+        supplier.razaoSocial || supplier.nome,
+        supplier.contato || 'N/D',
+        supplier.email || 'N/D',
+        supplier.telefone || 'N/D',
+      ]);
+      const csv = [header, ...rows].map((r) => r.join(';')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'fornecedores.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+      break;
+    }
+    default:
+      showToast('Nada para exportar nesta página.', 'error');
+  }
+}
+
+function addEventListeners() {
+  elements.docsBtn?.addEventListener('click', exportTableFromContext);
+  elements.docsBtnHeader?.addEventListener('click', exportTableFromContext);
+
+  if (elements.authToggle) {
+    elements.authToggle.addEventListener('click', () => {
+      if (state.token) {
+        setToken(null);
+        showToast('Sessão encerrada.');
+        window.location.href = 'index.html';
+      } else {
+        window.location.href = 'login.html';
+      }
+    });
+  }
+
+  elements.loginForm?.addEventListener('submit', handleLogin);
+  elements.refreshItems?.addEventListener('click', loadItems);
+  elements.refreshSuppliers?.addEventListener('click', loadSuppliers);
+
+  elements.itemForm?.addEventListener('submit', handleItemSubmit);
+  elements.itemImage?.addEventListener('change', handleImagePreview);
+  elements.exportItems?.addEventListener('click', () => exportItemsToExcel());
+  elements.exportDetail?.addEventListener('click', () => exportTableFromContext());
+  elements.supplierForm?.addEventListener('submit', handleSupplierSubmit);
+  elements.customerForm?.addEventListener('submit', handleCustomerSubmit);
+  elements.addressForm?.addEventListener('submit', handleAddressSubmit);
+  elements.phoneForm?.addEventListener('submit', handlePhoneSubmit);
+  elements.thresholdForm?.addEventListener('submit', handleThresholdSubmit);
 
   document.querySelectorAll('[data-export]').forEach((btn) => {
     btn.addEventListener('click', handleExportClick);
   });
 
-  elements.toggleAlerts.addEventListener('click', () => {
+  elements.toggleAlerts?.addEventListener('click', () => {
     state.alertsPaused = !state.alertsPaused;
     elements.toggleAlerts.textContent = state.alertsPaused ? 'Retomar' : 'Pausar';
   });
 
-  attachMask(document.querySelector('#suppliersPage input[name="cnpj"]'), formatCNPJ);
-  attachMask(document.querySelector('#suppliersPage input[name="telefone"]'), formatPhone);
-  attachMask(document.querySelector('#customersPage input[name="cnpj"]'), formatCNPJ);
-  attachMask(document.querySelector('#customersPage input[name="telefone"]'), formatPhone);
-  attachMask(document.querySelector('#phonesPage input[name="numero"]'), formatPhone);
+  if (elements.alertsModal && elements.openAlertsModal) {
+    elements.openAlertsModal.addEventListener('click', () => elements.alertsModal.showModal());
+    elements.closeAlertsModal?.addEventListener('click', () => elements.alertsModal.close());
+    elements.alertsModal.addEventListener('click', (event) => {
+      const dialog = event.currentTarget;
+      const rect = dialog.getBoundingClientRect();
+      const isOutside =
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom;
+      if (isOutside) dialog.close();
+    });
+  }
+
+  attachMask(elements.supplierForm?.querySelector('input[name="cnpj"]'), formatCNPJ);
+  attachMask(elements.supplierForm?.querySelector('input[name="telefone"]'), formatPhone);
+  attachMask(elements.customerForm?.querySelector('input[name="cnpj"]'), formatCNPJ);
+  attachMask(elements.customerForm?.querySelector('input[name="telefone"]'), formatPhone);
+  attachMask(elements.phoneForm?.querySelector('input[name="numero"]'), formatPhone);
 }
 
 function init() {
   addEventListeners();
+  setupTabPanels();
   setupVisualizationLazyLoad();
   syncAuthState();
   if (state.token) {
-    loadItems();
-    loadSuppliers();
-    elements.appShell.hidden = false;
-    setActivePage(state.currentPage);
+    if (elements.itemsList || elements.itemsBoard) {
+      loadItems();
+    }
+    if (elements.suppliersList) {
+      loadSuppliers();
+    }
   }
 }
 

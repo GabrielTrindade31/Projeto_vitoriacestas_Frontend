@@ -3,399 +3,129 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vitória Cestas | Estoque</title>
+  <title>Vitória Cestas | Início</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-  <header class="hero">
-    <div class="hero__content">
-      <p class="hero__eyebrow">Gestão de Estoque</p>
-      <h1>Vitória Cestas</h1>
-      <p class="hero__lead">
-        Acompanhe a saúde do estoque, cadastre produtos e fornecedores e mantenha toda a operação alinhada com o
-        backend já publicado.
-      </p>
-      <div class="hero__actions">
-        <button id="primaryLoginBtn" class="btn btn--primary">Fazer login</button>
-        <button id="docsBtn" class="btn btn--ghost">Abrir documentação</button>
+<body data-page="home">
+  <div class="app-frame">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand-dot"></div>
+        <div>
+          <strong>Vitória Cestas</strong>
+          <small>Backoffice</small>
+        </div>
       </div>
-      <p class="hero__hint">Backend pronto (proxy /api para Vercel): https://projeto-vitoriacestas-backend.vercel.app</p>
+      <nav class="nav">
+        <a class="nav__item nav__item--active" href="index.html">
+          <span>Início</span>
+        </a>
+        <a class="nav__item" href="items.html">
+          <span>Itens</span>
+        </a>
+        <a class="nav__item" href="suppliers.html">
+          <span>Fornecedores</span>
+        </a>
+        <a class="nav__item" href="customers.html">
+          <span>Clientes</span>
+        </a>
+        <a class="nav__item" href="addresses.html">
+          <span>Endereços</span>
+        </a>
+        <a class="nav__item" href="phones.html">
+          <span>Telefones</span>
+        </a>
+      </nav>
+      <div class="sidebar__cta">
+        <p>Exportar tabela</p>
+        <button id="docsBtn" class="btn btn--ghost">Gerar .xlsx</button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <div class="topbar">
+        <span class="topbar__hint">Bem-vindo! Navegue pelas páginas para cadastrar e acompanhar.</span>
+        <button id="authToggle" class="btn btn--login">Login</button>
+      </div>
+      <header class="hero">
+        <div class="hero__content">
+          <p class="hero__eyebrow">Como funciona</p>
+          <h1>Organize o estoque em minutos</h1>
+          <p class="hero__lead">
+            Use o menu lateral para acessar cadastros separados. Cada área tem exportação própria, listas resumidas e acompanhamento rápido.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" href="items.html">Abrir itens</a>
+            <button id="docsBtnHeader" class="btn btn--ghost">Baixar tabela atual</button>
+          </div>
+          <p class="hero__hint">Veja abaixo um resumo do que foi adicionado recentemente.</p>
+        </div>
+        <div class="hero__panel">
+          <p class="hero__panel-title">O que você encontra</p>
+          <ol>
+            <li>Menu lateral fixo em verde-água em todas as páginas.</li>
+            <li>Páginas separadas para itens, fornecedores, clientes e mais.</li>
+            <li>Exportação direta da tabela aberta para Excel/CSV.</li>
+            <li>Upload de imagem em blob junto com o item.</li>
+          </ol>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="card card--wide">
+          <div class="card__header card__header--row">
+            <div>
+              <h2>Últimas movimentações</h2>
+              <p class="muted">Acompanhe rapidamente o que entrou por último no sistema.</p>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="stack">
+              <div class="stack__header">
+                <h3>Últimos itens</h3>
+                <button class="btn btn--ghost" id="refreshItems">Atualizar</button>
+              </div>
+              <div id="itemsList" class="list">Os itens mais recentes aparecem aqui após carregar o painel.</div>
+            </div>
+
+            <div class="stack">
+              <div class="stack__header">
+                <h3>Fornecedores recentes</h3>
+                <button class="btn btn--ghost" id="refreshSuppliers">Atualizar</button>
+              </div>
+              <div id="suppliersList" class="list">Últimas inclusões ficam disponíveis após carregar o painel.</div>
+            </div>
+          </div>
+
+          <div class="home-columns">
+            <div class="home-highlight">
+              <h3>Cadastros principais</h3>
+              <ul>
+                <li>Itens com imagem, preço e estoque mínimo.</li>
+                <li>Fornecedores com CNPJ e contatos validados.</li>
+                <li>Clientes, endereços e telefones em páginas separadas.</li>
+              </ul>
+            </div>
+            <div class="home-highlight">
+              <h3>Atalhos rápidos</h3>
+              <div class="hero__actions">
+                <a class="btn btn--primary" href="suppliers.html">Fornecedores</a>
+                <a class="btn btn--ghost" href="customers.html">Clientes</a>
+              </div>
+              <p class="muted">Use os botões ou o menu lateral para navegar sem perder o contexto.</p>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
-    <div class="hero__panel">
-      <p class="hero__panel-title">Fluxo sugerido</p>
-      <ol>
-        <li>Autentique-se e salve o JWT no navegador.</li>
-        <li>Envie o token em chamadas protegidas (Authorization: Bearer ...).</li>
-        <li>Liste itens e fornecedores antes de editar ou cadastrar.</li>
-        <li>Use mensagens da API para mostrar sucesso ou erro.</li>
-      </ol>
-    </div>
-  </header>
+  </div>
 
-  <main class="layout">
-    <section class="card" id="loginCard">
-      <div class="card__header">
-        <h2>Acesso</h2>
-        <p>Entre para habilitar as ações protegidas.</p>
-      </div>
-      <form id="loginForm" class="form">
-        <label class="form__field">
-          <span>Email</span>
-          <input type="email" name="email" placeholder="email@exemplo.com" required />
-        </label>
-        <label class="form__field">
-          <span>Senha</span>
-          <input type="password" name="password" placeholder="••••••••" required />
-        </label>
-        <button type="submit" class="btn btn--primary">Entrar</button>
-      </form>
-    </section>
-
-    <section class="card card--wide" id="appShell" hidden>
-      <div class="shell__bar">
-        <div class="pill" id="authStatus">Não autenticado</div>
-        <div class="tabs" id="pageTabs">
-          <button type="button" data-page-target="dashboardPage" class="tabs__btn tabs__btn--active">Início</button>
-          <button type="button" data-page-target="itemsPage" class="tabs__btn">Itens</button>
-          <button type="button" data-page-target="suppliersPage" class="tabs__btn">Fornecedores</button>
-          <button type="button" data-page-target="customersPage" class="tabs__btn">Clientes</button>
-          <button type="button" data-page-target="addressesPage" class="tabs__btn">Endereços</button>
-          <button type="button" data-page-target="phonesPage" class="tabs__btn">Telefones</button>
-        </div>
-        <button type="button" class="btn btn--ghost" id="logoutBtn">Sair</button>
-      </div>
-    </section>
-
-    <section class="card card--wide page" id="dashboardPage" data-page>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Painel principal</h2>
-          <p class="muted">Exibe os últimos itens e fornecedores após login.</p>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="stack">
-          <div class="stack__header">
-            <h3>Itens recentes</h3>
-            <button class="btn btn--ghost" id="refreshItems">Atualizar</button>
-          </div>
-          <div id="itemsList" class="list">Faça login para carregar os itens.</div>
-        </div>
-
-        <div class="stack">
-          <div class="stack__header">
-            <h3>Fornecedores recentes</h3>
-            <button class="btn btn--ghost" id="refreshSuppliers">Atualizar</button>
-          </div>
-          <div id="suppliersList" class="list">Faça login para carregar os fornecedores.</div>
-        </div>
-      </div>
-
-      <section class="dashboard-visuals" id="dashboardVisuals">
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <p class="kpi-card__label">Itens cadastrados</p>
-            <h3 id="kpiItemsTotal">–</h3>
-            <p class="muted">Contagem total após autenticação</p>
-          </div>
-          <div class="kpi-card">
-            <p class="kpi-card__label">Valor potencial</p>
-            <h3 id="kpiTotalValue">–</h3>
-            <p class="muted">Soma de quantidade x preço</p>
-          </div>
-          <div class="kpi-card kpi-card--alert">
-            <p class="kpi-card__label">Alertas ativos</p>
-            <h3 id="kpiAlertsCount">–</h3>
-            <p class="muted">Itens abaixo do estoque mínimo</p>
-          </div>
-        </div>
-
-        <div class="chart-grid">
-          <div class="chart-card">
-            <div class="chart-card__header">
-              <div>
-                <p class="chart-card__eyebrow">Visualização</p>
-                <h3>Estoque por categoria</h3>
-              </div>
-              <div class="chart-card__actions">
-                <button class="btn btn--ghost" data-export="stockByCategory" data-format="png">Exportar PNG</button>
-                <button class="btn btn--ghost" data-export="stockByCategory" data-format="csv">Exportar CSV</button>
-              </div>
-            </div>
-            <canvas id="stockByCategory" height="240" aria-label="Gráfico de barras de estoque por categoria"></canvas>
-          </div>
-
-          <div class="chart-card">
-            <div class="chart-card__header">
-              <div>
-                <p class="chart-card__eyebrow">Tendência</p>
-                <h3>Movimentação simulada</h3>
-              </div>
-              <div class="chart-card__actions">
-                <button class="btn btn--ghost" data-export="stockTrend" data-format="png">Exportar PNG</button>
-                <button class="btn btn--ghost" data-export="stockTrend" data-format="csv">Exportar CSV</button>
-              </div>
-            </div>
-            <canvas id="stockTrend" height="240" aria-label="Gráfico de linha de tendência de estoque"></canvas>
-          </div>
-
-          <div class="chart-card chart-card--alerts">
-            <div class="chart-card__header">
-              <div>
-                <p class="chart-card__eyebrow">Alertas</p>
-                <h3>Estoque mínimo</h3>
-              </div>
-              <div class="chart-card__actions">
-                <button class="btn btn--ghost" id="toggleAlerts">Pausar</button>
-              </div>
-            </div>
-            <div id="alertsList" class="alerts-list">Nenhum alerta pendente.</div>
-          </div>
-        </div>
-      </section>
-
-      <div class="grid grid--cta">
-        <div class="cta">
-          <div>
-            <p class="cta__eyebrow">Cadastro rápido</p>
-            <h3>Acesse a página de itens</h3>
-            <p>Informe código, nome, quantidade e preço. Opcionalmente, defina descrição, categoria e fornecedor.</p>
-          </div>
-          <button class="btn btn--primary" data-page-target="itemsPage">Abrir</button>
-        </div>
-
-        <div class="cta">
-          <div>
-            <p class="cta__eyebrow">Cadastro rápido</p>
-            <h3>Acesse a página de fornecedores</h3>
-            <p>Cadastre CNPJ, razão social, nome do fornecedor (contato), email e telefone com validação de números.</p>
-          </div>
-          <button class="btn btn--primary" data-page-target="suppliersPage">Abrir</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="card card--wide page" id="itemsPage" data-page hidden>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Cadastro de itens</h2>
-          <p class="muted">Envie itens com quantidade/preço não negativos; fornecedor é opcional.</p>
-        </div>
-        <button class="btn btn--ghost" id="backToDashboard1" data-page-target="dashboardPage">Voltar</button>
-      </div>
-      <form id="itemForm" class="form">
-        <label class="form__field">
-          <span>Código *</span>
-          <input name="codigo" required />
-        </label>
-        <label class="form__field">
-          <span>Nome *</span>
-          <input name="nome" required />
-        </label>
-        <label class="form__field">
-          <span>Descrição</span>
-          <textarea name="descricao" rows="2"></textarea>
-        </label>
-        <label class="form__field">
-          <span>Categoria</span>
-          <input name="categoria" />
-        </label>
-        <label class="form__field">
-          <span>Quantidade *</span>
-          <input type="number" name="quantidade" min="0" step="1" required />
-        </label>
-        <label class="form__field">
-          <span>Preço *</span>
-          <input type="number" name="preco" min="0" step="0.01" required />
-        </label>
-        <label class="form__field">
-          <span>ID do fornecedor (opcional)</span>
-          <input name="fornecedorId" inputmode="numeric" pattern="\\d*" />
-        </label>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary">Salvar item</button>
-        </div>
-      </form>
-
-      <div class="card__header card__header--row">
-        <div>
-          <h3>Estoque mínimo</h3>
-          <p class="muted">Configure alertas por item. Valores ficam salvos no navegador.</p>
-        </div>
-      </div>
-      <form id="thresholdForm" class="form form--inline">
-        <label class="form__field">
-          <span>Código do item</span>
-          <input name="codigo" required />
-        </label>
-        <label class="form__field">
-          <span>Quantidade mínima</span>
-          <input type="number" name="minimo" min="0" step="1" required />
-        </label>
-        <label class="checkbox">
-          <input type="checkbox" name="habilitado" checked />
-          <span>Habilitar alerta</span>
-        </label>
-        <button type="submit" class="btn btn--primary">Salvar limite</button>
-      </form>
-    </section>
-
-    <section class="card card--wide page" id="suppliersPage" data-page hidden>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Cadastro de fornecedores</h2>
-          <p class="muted">Campos numéricos aceitam apenas dígitos; IDs vazios são enviados como 0.</p>
-        </div>
-        <button class="btn btn--ghost" id="backToDashboard2" data-page-target="dashboardPage">Voltar</button>
-      </div>
-      <form id="supplierForm" class="form">
-        <label class="form__field">
-          <span>CNPJ *</span>
-          <input name="cnpj" required maxlength="18" inputmode="numeric" autocomplete="on" />
-        </label>
-        <label class="form__field">
-          <span>Razão social *</span>
-          <input name="razaoSocial" required />
-        </label>
-        <label class="form__field">
-          <span>Nome do fornecedor (contato) *</span>
-          <input name="contato" required />
-        </label>
-        <label class="form__field">
-          <span>Email *</span>
-          <input type="email" name="email" required />
-        </label>
-        <label class="form__field">
-          <span>Telefone *</span>
-          <input name="telefone" required placeholder="(00) 00000-0000" maxlength="15" inputmode="numeric" />
-        </label>
-        <label class="form__field">
-          <span>ID do endereço (opcional)</span>
-          <input name="enderecoId" inputmode="numeric" pattern="\\d*" placeholder="0" />
-        </label>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary">Salvar fornecedor</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card card--wide page" id="customersPage" data-page hidden>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Cadastro de clientes</h2>
-          <p class="muted">Nome, data de nascimento e endereço são obrigatórios. Telefones aceitam apenas números.</p>
-        </div>
-        <button class="btn btn--ghost" id="backToDashboard3" data-page-target="dashboardPage">Voltar</button>
-      </div>
-      <form id="customerForm" class="form">
-        <label class="form__field">
-          <span>Nome *</span>
-          <input name="nome" required />
-        </label>
-        <label class="form__field">
-          <span>CPF</span>
-          <input name="cpf" inputmode="numeric" pattern="\\d*" maxlength="14" placeholder="Somente números" />
-        </label>
-        <label class="form__field">
-          <span>CNPJ</span>
-          <input name="cnpj" inputmode="numeric" pattern="\\d*" maxlength="18" placeholder="Somente números" />
-        </label>
-        <label class="form__field">
-          <span>Email</span>
-          <input type="email" name="email" placeholder="Opcional" />
-        </label>
-        <label class="form__field">
-          <span>Data de nascimento *</span>
-          <input type="date" name="dataNascimento" required />
-        </label>
-        <label class="form__field">
-          <span>ID do endereço *</span>
-          <input name="enderecoId" required inputmode="numeric" pattern="\\d*" />
-        </label>
-        <label class="form__field">
-          <span>Telefone do cliente</span>
-          <input name="telefone" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000" />
-        </label>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary">Salvar cliente</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card card--wide page" id="addressesPage" data-page hidden>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Cadastro de endereços</h2>
-          <p class="muted">Ao deixar campos numéricos em branco, o valor 0 é enviado.</p>
-        </div>
-        <button class="btn btn--ghost" id="backToDashboard4" data-page-target="dashboardPage">Voltar</button>
-      </div>
-      <form id="addressForm" class="form">
-        <label class="form__field">
-          <span>CEP</span>
-          <input name="cep" inputmode="numeric" pattern="\\d*" maxlength="9" placeholder="Somente números" />
-        </label>
-        <label class="form__field">
-          <span>Rua</span>
-          <input name="rua" />
-        </label>
-        <label class="form__field">
-          <span>Número</span>
-          <input name="numero" inputmode="numeric" pattern="\\d*" placeholder="0" />
-        </label>
-        <label class="form__field">
-          <span>Bairro</span>
-          <input name="bairro" />
-        </label>
-        <label class="form__field">
-          <span>Cidade</span>
-          <input name="cidade" />
-        </label>
-        <label class="form__field">
-          <span>Estado</span>
-          <input name="estado" maxlength="2" placeholder="UF" />
-        </label>
-        <label class="form__field">
-          <span>Complemento</span>
-          <input name="complemento" />
-        </label>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary">Salvar endereço</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card card--wide page" id="phonesPage" data-page hidden>
-      <div class="card__header card__header--row">
-        <div>
-          <h2>Cadastro de telefones</h2>
-          <p class="muted">Vincule um telefone já formatado a um cliente existente.</p>
-        </div>
-        <button class="btn btn--ghost" id="backToDashboard5" data-page-target="dashboardPage">Voltar</button>
-      </div>
-      <form id="phoneForm" class="form">
-        <label class="form__field">
-          <span>Telefone *</span>
-          <input name="numero" required inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000" />
-        </label>
-        <label class="form__field">
-          <span>ID do cliente *</span>
-          <input name="clienteId" required inputmode="numeric" pattern="\\d*" />
-        </label>
-        <div class="form__actions">
-          <button type="submit" class="btn btn--primary">Salvar telefone</button>
-        </div>
-      </form>
-    </section>
-  </main>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
+  <div id="toast" class="toast" role="status"></div>
   <script src="main.js"></script>
 </body>
 </html>
