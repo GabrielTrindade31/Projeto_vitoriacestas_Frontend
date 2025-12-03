@@ -41,6 +41,7 @@ interface Supplier {
   contato: string;
   email?: string | null;
   telefone?: string | null;
+  ddi?: string | null;
   endereco_id?: number | null;
 }
 
@@ -53,7 +54,9 @@ interface Product {
   quantidade: number;
   preco: number;
   fornecedor_id?: number | null;
+  fornecedorId?: number | null;
   imagem_url?: string;
+  imagemUrl?: string;
 }
 
 interface RawMaterial {
@@ -62,16 +65,19 @@ interface RawMaterial {
   tipo?: string;
   custo?: number;
   datavalidade?: string;
+  dataValidade?: string;
   descricao?: string;
   tamanho?: string;
   material?: string;
   acessorio?: string;
   imagem_url?: string;
+  imagemUrl?: string;
 }
 
 interface Phone {
   id?: number;
   cliente_id?: number;
+  ddi?: string;
   ddd?: string;
   numero?: string;
 }
@@ -127,14 +133,43 @@ interface UploadResponse {
   path?: string;
 }
 
+interface ColumnDef<T> {
+  label: string;
+  value: (row: T) => string | number | null | undefined;
+}
+
 type Page = 'dashboard' | 'items' | 'operations' | 'suppliers' | 'customers' | 'addresses' | 'phones';
 
 const digitsOnly = (value: string) => value.replace(/\D+/g, '');
 
+const normalizeIdValue = (value?: number | string | null) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeOptionalString = (value?: string | null) => {
+  const trimmed = value?.trim() || '';
+  return trimmed ? trimmed : null;
+};
+
+const normalizeNumberValue = (value?: number | string | null, allowNull = false) => {
+  const normalized = normalizeIdValue(value);
+  if (normalized === null) return allowNull ? null : 0;
+  return normalized;
+};
+
+const normalizeDateValue = (value?: string | null) => {
+  if (!value) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value) || /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().split('T')[0];
+};
+
 const normalizePhoneDigits = (value: string) => {
   const digits = digitsOnly(value);
-  const withoutCountry = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
-  return withoutCountry.slice(0, 11);
+  return digits.slice(0, 13);
 };
 
 const maskCpf = (value: string) => {
@@ -154,20 +189,127 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 };
 
-const maskPhone = (value: string) => {
-  const stripped = normalizePhoneDigits(value);
-  const digits = stripped;
+const maskPhone = (value: string, ddi = '55') => {
+  const digits = normalizePhoneDigits(value);
   if (!digits) return '';
-  const ddd = digits.slice(0, 2);
-  const rest = digits.slice(2);
-  if (!rest) return `+55 (${ddd}`;
-  if (rest.length <= 4) return `+55 (${ddd}) ${rest}`;
-  const first = rest.slice(0, rest.length - 4);
+  const countrySize = digits.length > 11 ? digits.length - 11 : 0;
+  const country = digits.slice(0, countrySize) || ddi;
+  const ddd = digits.slice(countrySize, countrySize + 3).replace(/^0/, '') || '--';
+  const rest = digits.slice(countrySize + 3);
+  if (!rest) return `+${country} (${ddd})`;
+  const first = rest.slice(0, Math.max(0, rest.length - 4));
   const last = rest.slice(-4);
-  return `+55 (${ddd}) ${first}-${last}`;
+  return `+${country} (${ddd}) ${first ? `${first}-` : ''}${last}`;
 };
 
+const formatPhoneInput = (ddi: string, ddd: string, numero: string) => {
+  const base = digitsOnly(numero || '');
+  const ddiValue = digitsOnly(ddi || '') || '55';
+  const dddValue = digitsOnly(ddd || '');
+  const first = base.slice(0, Math.max(0, base.length - 4));
+  const last = base.slice(-4);
+  return `+${ddiValue} (${dddValue || '--'}) ${first ? `${first}-` : ''}${last}`.trim();
+};
+
+const DDI_OPTIONS = [
+  { code: '55', label: 'Brasil', flag: '🇧🇷' },
+  { code: '1', label: 'Estados Unidos/Canadá', flag: '🇺🇸' },
+  { code: '44', label: 'Reino Unido', flag: '🇬🇧' },
+  { code: '351', label: 'Portugal', flag: '🇵🇹' },
+  { code: '34', label: 'Espanha', flag: '🇪🇸' },
+];
+
+const mapProductResponse = (product: any): Product => ({
+  ...product,
+  fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+  fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+  imagem_url: product?.imagem_url ?? product?.imagemUrl,
+  imagemUrl: product?.imagemUrl ?? product?.imagem_url,
+});
+
+const mapMaterialResponse = (material: any): RawMaterial => ({
+  ...material,
+  datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
+  dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
+  imagem_url: material?.imagem_url ?? material?.imagemUrl,
+  imagemUrl: material?.imagemUrl ?? material?.imagem_url,
+});
+
+const mapSupplierResponse = (supplier: any): Supplier => ({
+  ...supplier,
+  razao_social: supplier?.razao_social ?? supplier?.razaoSocial,
+  contato: supplier?.contato ?? supplier?.contato,
+  endereco_id: normalizeIdValue(supplier?.endereco_id ?? supplier?.enderecoId),
+  ddi: supplier?.ddi ?? null,
+  telefone: supplier?.telefone ?? null,
+});
+
+const mapCustomerResponse = (customer: any): Customer => ({
+  ...customer,
+  endereco_id: normalizeIdValue(customer?.endereco_id ?? customer?.enderecoId) ?? undefined,
+});
+
+const mapPhoneResponse = (phone: any): Phone => ({
+  ...phone,
+  cliente_id: normalizeIdValue(phone?.cliente_id ?? phone?.clienteId) ?? undefined,
+  ddi: phone?.ddi ?? '55',
+});
+
+const mapManufacturingResponse = (row: any): Manufacturing => ({
+  ...row,
+  produto_id: normalizeIdValue(row?.produto_id ?? row?.produtoId),
+  material_id: normalizeIdValue(row?.material_id ?? row?.materialId),
+  quantidade_material: normalizeNumberValue(row?.quantidade_material ?? row?.quantidadeMaterial, true) ?? undefined,
+});
+
+const mapDeliveryResponse = (delivery: any): MaterialDelivery => ({
+  ...delivery,
+  material_id: normalizeIdValue(delivery?.material_id ?? delivery?.materialId),
+  fornecedor_id: normalizeIdValue(delivery?.fornecedor_id ?? delivery?.fornecedorId),
+  data_entrada: delivery?.data_entrada ?? delivery?.dataEntrada ?? null,
+});
+
+const mapOrderResponse = (order: any): Order => ({
+  ...order,
+  cliente_id: normalizeIdValue(order?.cliente_id ?? order?.clienteId),
+  data_pedido: order?.data_pedido ?? order?.dataPedido ?? null,
+});
+
+const mapShipmentResponse = (shipment: any): Shipment => ({
+  ...shipment,
+  pedido_id: normalizeIdValue(shipment?.pedido_id ?? shipment?.pedidoId),
+  produto_id: normalizeIdValue(shipment?.produto_id ?? shipment?.produtoId),
+  data_envio: shipment?.data_envio ?? shipment?.dataEnvio ?? null,
+});
+
+const mapFeedbackResponse = (feedback: any): FeedbackRow => ({
+  ...feedback,
+  cliente_id: normalizeIdValue(feedback?.cliente_id ?? feedback?.clienteId),
+});
+
 const money = (value: number | string) => `R$ ${Number(value || 0).toFixed(2)}`;
+
+const exportToXls = <T,>(filename: string, columns: ColumnDef<T>[], rows: T[]) => {
+  if (!rows.length) return;
+  const header = columns.map((col) => col.label).join('\t');
+  const lines = rows.map((row) =>
+    columns
+      .map((col) => {
+        const raw = col.value(row);
+        if (raw === null || raw === undefined) return '';
+        return String(raw).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+      })
+      .join('\t')
+  );
+  const content = [header, ...lines].join('\n');
+  const blob = new Blob([content], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
 function useAuth() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(STORAGE_TOKEN_KEY));
@@ -223,7 +365,9 @@ function useApi(token: string | null) {
         throw new Error(sanitized || 'Erro ao processar requisição');
       }
 
-      return data as ApiResponse<T>;
+      const normalizedData = data && typeof data === 'object' && 'data' in data ? (data as any).data : data;
+
+      return { data: normalizedData as T, message: (data as any)?.message } as ApiResponse<T>;
     },
     [token]
   );
@@ -505,7 +649,7 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
 }
 
 function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (phone: Phone) => Promise<void> }) {
-  const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddd: '', numero: '' });
+  const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -514,8 +658,13 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, ddd: digitsOnly(form.ddd).slice(0, 3), numero: digitsOnly(form.numero).slice(0, 9) });
-      setForm({ cliente_id: undefined, ddd: '', numero: '' });
+      await onSubmit({
+        ...form,
+        ddd: digitsOnly(form.ddd).slice(0, 3),
+        numero: digitsOnly(form.numero).slice(0, 9),
+        cliente_id: form.cliente_id ? Number(form.cliente_id) : undefined,
+      });
+      setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar telefone');
     } finally {
@@ -523,11 +672,23 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
     }
   };
 
-  const displayValue = maskPhone(`${form.ddd || ''}${form.numero || ''}`);
+  const displayValue = formatPhoneInput(form.ddi || '55', form.ddd || '', form.numero || '');
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--3">
+      <div className="grid grid--4-fixed">
+        <label className="form__group">
+          <span>DDI</span>
+          <select
+            value={form.ddi || '55'}
+            onChange={(e) => setForm({ ...form, ddi: e.target.value })}
+            className="ddi-select"
+          >
+            {DDI_OPTIONS.map((ddi) => (
+              <option key={ddi.code} value={ddi.code}>{`${ddi.flag} +${ddi.code} (${ddi.label})`}</option>
+            ))}
+          </select>
+        </label>
         <label className="form__group">
           <span>DDD</span>
           <input
@@ -582,26 +743,37 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
 }
 
 function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (supplier: Supplier) => Promise<void> }) {
-  const [form, setForm] = useState<Supplier>({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
+  const [form, setForm] = useState<Supplier>({
+    cnpj: '',
+    razao_social: '',
+    contato: '',
+    email: '',
+    telefone: '',
+    ddi: '55',
+    endereco_id: undefined,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const maskedPhone = maskPhone(form.telefone || '');
+  const maskedPhone = maskPhone(`${form.ddi || ''}${form.telefone || ''}`, form.ddi || '55');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     try {
+      const ddi = digitsOnly(form.ddi || '');
+      const phoneDigits = normalizePhoneDigits(form.telefone || '');
       await onSubmit({
         ...form,
         razao_social: form.razao_social.trim(),
         cnpj: digitsOnly(form.cnpj),
-        email: form.email ? form.email : null,
-        telefone: form.telefone ? normalizePhoneDigits(form.telefone) : null,
-        endereco_id: form.endereco_id ? Number(form.endereco_id) : null,
+        email: normalizeOptionalString(form.email),
+        telefone: phoneDigits ? `${ddi || '55'}${phoneDigits}` : null,
+        ddi: ddi || null,
+        endereco_id: normalizeIdValue(form.endereco_id),
       });
-      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
+      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar fornecedor');
     } finally {
@@ -632,11 +804,19 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
         <label className="form__group">
           <span>Telefone</span>
-          <input
-            value={form.telefone || ''}
-            onChange={(e) => setForm({ ...form, telefone: normalizePhoneDigits(e.target.value) })}
-            placeholder="+55 (11) 99999-0000"
-          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              value={form.ddi || ''}
+              onChange={(e) => setForm({ ...form, ddi: digitsOnly(e.target.value).slice(0, 3) })}
+              placeholder="55"
+              style={{ width: '72px' }}
+            />
+            <input
+              value={form.telefone || ''}
+              onChange={(e) => setForm({ ...form, telefone: normalizePhoneDigits(e.target.value) })}
+              placeholder="11999990000"
+            />
+          </div>
           {form.telefone && <small className="muted">{maskedPhone}</small>}
         </label>
         <label className="form__group">
@@ -664,10 +844,25 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
   );
 }
 
-function ImagePicker({ label, onUpload, preview }: { label: string; onUpload: (file: File) => Promise<string>; preview?: string }) {
+function ImagePicker({
+  label,
+  onUpload,
+  preview,
+  onClear,
+}: {
+  label: string;
+  onUpload: (file: File) => Promise<string>;
+  preview?: string;
+  onClear?: () => void;
+}) {
   const [localPreview, setLocalPreview] = useState<string | undefined>(preview);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setLocalPreview(preview);
+  }, [preview]);
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -685,13 +880,28 @@ function ImagePicker({ label, onUpload, preview }: { label: string; onUpload: (f
     }
   };
 
+  const handleClear = () => {
+    setLocalPreview(undefined);
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+    onClear?.();
+  };
+
   return (
     <div className="form__group">
       <span>{label}</span>
-      <label className="upload">
-        <input type="file" accept="image/*" onChange={handleChange} />
-        <span>{loading ? 'Enviando...' : 'Selecionar imagem'}</span>
-      </label>
+      <div className="upload-row">
+        <label className="upload">
+          <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} />
+          <span>{loading ? 'Enviando...' : 'Selecionar imagem'}</span>
+        </label>
+        {(preview || localPreview) && (
+          <button type="button" className="btn btn--ghost" onClick={handleClear} aria-label="Remover imagem">
+            Remover imagem
+          </button>
+        )}
+      </div>
       {(preview || localPreview) && <img src={localPreview || preview} className="upload__preview" alt="Pré-visualização" />}
       {error && <p className="form__error">{error}</p>}
     </div>
@@ -780,11 +990,16 @@ function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[];
         <span>Descrição</span>
         <textarea value={form.descricao || ''} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
       </label>
-      <ImagePicker label="Imagem" onUpload={async (file) => {
-        const url = await onUpload(file);
-        setImageUrl(url);
-        return url;
-      }} preview={imageUrl} />
+      <ImagePicker
+        label="Imagem"
+        onUpload={async (file) => {
+          const url = await onUpload(file);
+          setImageUrl(url);
+          return url;
+        }}
+        preview={imageUrl}
+        onClear={() => setImageUrl(undefined)}
+      />
       {error && <p className="form__error">{error}</p>}
       <div className="form__actions">
         <button className="btn" type="submit" disabled={loading}>
@@ -806,7 +1021,18 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, imagem_url: imageUrl });
+      await onSubmit({
+        ...form,
+        nome: form.nome.trim(),
+        tipo: normalizeOptionalString(form.tipo) || undefined,
+        custo: normalizeNumberValue(form.custo, true) ?? undefined,
+        datavalidade: normalizeDateValue(form.datavalidade || form.dataValidade || null) || undefined,
+        descricao: normalizeOptionalString(form.descricao) || undefined,
+        tamanho: normalizeOptionalString(form.tamanho) || undefined,
+        material: normalizeOptionalString(form.material) || undefined,
+        acessorio: normalizeOptionalString(form.acessorio) || undefined,
+        imagem_url: imageUrl || undefined,
+      });
       setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
       setImageUrl(undefined);
     } catch (err: any) {
@@ -867,11 +1093,16 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
           <textarea value={form.descricao || ''} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
         </label>
       </div>
-      <ImagePicker label="Imagem" onUpload={async (file) => {
-        const url = await onUpload(file);
-        setImageUrl(url);
-        return url;
-      }} preview={imageUrl} />
+      <ImagePicker
+        label="Imagem"
+        onUpload={async (file) => {
+          const url = await onUpload(file);
+          setImageUrl(url);
+          return url;
+        }}
+        preview={imageUrl}
+        onClear={() => setImageUrl(undefined)}
+      />
       {error && <p className="form__error">{error}</p>}
       <div className="form__actions">
         <button className="btn" type="submit" disabled={loading}>
@@ -884,53 +1115,98 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
 
 function ProductsTable({ products }: { products: Product[] }) {
   if (!products.length) return <EmptyState message="Nenhum produto cadastrado." />;
+  const columns: ColumnDef<Product>[] = [
+    { label: 'Nome', value: (row) => row.nome },
+    { label: 'Código', value: (row) => row.codigo },
+    { label: 'Categoria', value: (row) => row.categoria || '' },
+    { label: 'Quantidade', value: (row) => row.quantidade },
+    { label: 'Preço', value: (row) => row.preco },
+  ];
   return (
-    <div className="table">
-      <div className="table__row table__head">
-        <span>Nome</span>
-        <span>Código</span>
-        <span>Categoria</span>
-        <span>Qtd</span>
-        <span>Preço</span>
+    <>
+      <div className="table__actions">
+        <button className="btn btn--ghost" type="button" onClick={() => exportToXls<Product>('produtos.xls', columns, products)}>
+          Baixar .xls
+        </button>
       </div>
-      {products.map((product) => (
-        <div key={product.id || product.codigo} className="table__row">
-          <div className="table__cell">
-            <strong>{product.nome}</strong>
-            <p className="muted">{product.descricao || 'Sem descrição'}</p>
-          </div>
-          <span className="table__cell">{product.codigo}</span>
-          <span className="table__cell">{product.categoria || 'Produto'}</span>
-          <span className="table__cell">{product.quantidade}</span>
-          <span className="table__cell">{money(product.preco)}</span>
+      <div className="table">
+        <div className="table__row table__head">
+          <span>Nome</span>
+          <span>Código</span>
+          <span>Categoria</span>
+          <span>Qtd</span>
+          <span>Preço</span>
         </div>
-      ))}
-    </div>
+        {products.map((product) => (
+          <div key={product.id || product.codigo} className="table__row">
+            <div className="table__cell">
+              <div className="thumbnail">
+                {product.imagem_url || product.imagemUrl ? (
+                  <img src={product.imagem_url || product.imagemUrl} alt={`Imagem de ${product.nome}`} />
+                ) : (
+                  <span className="muted">Sem imagem</span>
+                )}
+              </div>
+              <strong>{product.nome}</strong>
+              <p className="muted">{product.descricao || 'Sem descrição'}</p>
+            </div>
+            <span className="table__cell">{product.codigo}</span>
+            <span className="table__cell">{product.categoria || 'Produto'}</span>
+            <span className="table__cell">{product.quantidade}</span>
+            <span className="table__cell">{money(product.preco)}</span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
 function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
   if (!materials.length) return <EmptyState message="Nenhuma matéria-prima cadastrada." />;
+  const columns: ColumnDef<RawMaterial>[] = [
+    { label: 'Nome', value: (row) => row.nome },
+    { label: 'Tipo', value: (row) => row.tipo || '' },
+    { label: 'Custo', value: (row) => row.custo || 0 },
+    { label: 'Validade', value: (row) => row.datavalidade || row.dataValidade || '' },
+  ];
   return (
-    <div className="table">
-      <div className="table__row table__head">
-        <span>Nome</span>
-        <span>Tipo</span>
-        <span>Custo</span>
-        <span>Validade</span>
+    <>
+      <div className="table__actions">
+        <button
+          className="btn btn--ghost"
+          type="button"
+          onClick={() => exportToXls<RawMaterial>('materiais.xls', columns, materials)}
+        >
+          Baixar .xls
+        </button>
       </div>
-      {materials.map((material) => (
-        <div key={material.id || material.nome} className="table__row">
-          <div className="table__cell">
-            <strong>{material.nome}</strong>
-            <p className="muted">{material.descricao || 'Sem descrição'}</p>
-          </div>
-          <span className="table__cell">{material.tipo || 'N/I'}</span>
-          <span className="table__cell">{money(material.custo || 0)}</span>
-          <span className="table__cell">{material.datavalidade || '--'}</span>
+      <div className="table">
+        <div className="table__row table__head">
+          <span>Nome</span>
+          <span>Tipo</span>
+          <span>Custo</span>
+          <span>Validade</span>
         </div>
-      ))}
-    </div>
+        {materials.map((material) => (
+          <div key={material.id || material.nome} className="table__row">
+            <div className="table__cell">
+              <div className="thumbnail">
+                {material.imagem_url || material.imagemUrl ? (
+                  <img src={material.imagem_url || material.imagemUrl} alt={`Imagem de ${material.nome}`} />
+                ) : (
+                  <span className="muted">Sem imagem</span>
+                )}
+              </div>
+              <strong>{material.nome}</strong>
+              <p className="muted">{material.descricao || 'Sem descrição'}</p>
+            </div>
+            <span className="table__cell">{material.tipo || 'N/I'}</span>
+            <span className="table__cell">{money(material.custo || 0)}</span>
+            <span className="table__cell">{material.datavalidade || '--'}</span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -1353,20 +1629,37 @@ function OperationsPage({
           <SectionHeader title="Manufatura" subtitle="Relaciona produtos com matérias-primas e quantidades" />
           <ManufacturingForm products={products} materials={materials} onSubmit={onCreateManufacturing} />
           {manufacturing.length ? (
-            <div className="table">
-              <div className="table__row table__head">
-                <span>Produto</span>
-                <span>Matéria-prima</span>
-                <span>Qtd.</span>
+            <>
+              <div className="table__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    exportToXls<Manufacturing>('manufatura.xls', [
+                      { label: 'Produto', value: (row) => row.produto_id || row.produtoId },
+                      { label: 'Material', value: (row) => row.material_id || row.materialId },
+                      { label: 'Quantidade', value: (row) => row.quantidade_material ?? row.quantidadeMaterial ?? 0 },
+                    ], manufacturing)
+                  }
+                >
+                  Baixar .xls
+                </button>
               </div>
-              {manufacturing.map((row) => (
-                <div key={row.id || `${row.produto_id}-${row.material_id}`} className="table__row">
-                  <span className="table__cell">{products.find((p) => p.id === row.produto_id)?.nome || 'Produto'}</span>
-                  <span className="table__cell">{materials.find((m) => m.id === row.material_id)?.nome || 'Material'}</span>
-                  <span className="table__cell">{row.quantidade_material ?? 0}</span>
+              <div className="table">
+                <div className="table__row table__head">
+                  <span>Produto</span>
+                  <span>Matéria-prima</span>
+                  <span>Qtd.</span>
                 </div>
-              ))}
-            </div>
+                {manufacturing.map((row) => (
+                  <div key={row.id || `${row.produto_id}-${row.material_id}`} className="table__row">
+                    <span className="table__cell">{products.find((p) => p.id === row.produto_id)?.nome || 'Produto'}</span>
+                    <span className="table__cell">{materials.find((m) => m.id === row.material_id)?.nome || 'Material'}</span>
+                    <span className="table__cell">{row.quantidade_material ?? 0}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState message="Nenhuma relação de manufatura cadastrada." />
           )}
@@ -1378,25 +1671,44 @@ function OperationsPage({
           <SectionHeader title="Entrega de material" subtitle="Entradas com fornecedor opcional e custo" />
           <MaterialDeliveryForm materials={materials} suppliers={suppliers} onSubmit={onCreateDelivery} />
           {deliveries.length ? (
-            <div className="table">
-              <div className="table__row table__head">
-                <span>Material</span>
-                <span>Fornecedor</span>
-                <span>Qtd.</span>
-                <span>Custo</span>
+            <>
+              <div className="table__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    exportToXls<MaterialDelivery>('entregas-material.xls', [
+                      { label: 'Material', value: (row) => row.material_id || row.materialId },
+                      { label: 'Fornecedor', value: (row) => row.fornecedor_id || row.fornecedorId || '' },
+                      { label: 'Quantidade', value: (row) => row.quantidade ?? 0 },
+                      { label: 'Custo', value: (row) => row.custo ?? 0 },
+                      { label: 'Data entrada', value: (row) => row.data_entrada || row.dataEntrada || '' },
+                    ], deliveries)
+                  }
+                >
+                  Baixar .xls
+                </button>
               </div>
-              {deliveries.map((delivery) => (
-                <div key={delivery.id || `${delivery.material_id}-${delivery.fornecedor_id}-${delivery.data_entrada}`} className="table__row">
-                  <div className="table__cell">
-                    <strong>{materials.find((m) => m.id === delivery.material_id)?.nome || 'Material'}</strong>
-                    <p className="muted">{delivery.data_entrada || 'Data não informada'}</p>
-                  </div>
-                  <span className="table__cell">{suppliers.find((s) => s.id === delivery.fornecedor_id)?.razao_social || '---'}</span>
-                  <span className="table__cell">{delivery.quantidade ?? 0}</span>
-                  <span className="table__cell">{money(delivery.custo || 0)}</span>
+              <div className="table">
+                <div className="table__row table__head">
+                  <span>Material</span>
+                  <span>Fornecedor</span>
+                  <span>Qtd.</span>
+                  <span>Custo</span>
                 </div>
-              ))}
-            </div>
+                {deliveries.map((delivery) => (
+                  <div key={delivery.id || `${delivery.material_id}-${delivery.fornecedor_id}-${delivery.data_entrada}`} className="table__row">
+                    <div className="table__cell">
+                      <strong>{materials.find((m) => m.id === delivery.material_id)?.nome || 'Material'}</strong>
+                      <p className="muted">{delivery.data_entrada || 'Data não informada'}</p>
+                    </div>
+                    <span className="table__cell">{suppliers.find((s) => s.id === delivery.fornecedor_id)?.razao_social || '---'}</span>
+                    <span className="table__cell">{delivery.quantidade ?? 0}</span>
+                    <span className="table__cell">{money(delivery.custo || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState message="Nenhuma entrega registrada." />
           )}
@@ -1408,23 +1720,42 @@ function OperationsPage({
           <SectionHeader title="Pedidos" subtitle="Ligados a cliente e dados de presenteado" />
           <OrdersForm customers={customers} onSubmit={onCreateOrder} />
           {orders.length ? (
-            <div className="table">
-              <div className="table__row table__head">
-                <span>Pedido</span>
-                <span>Cliente</span>
-                <span>Preço</span>
+            <>
+              <div className="table__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    exportToXls<Order>('pedidos.xls', [
+                      { label: 'Pedido', value: (row) => row.id || '' },
+                      { label: 'Cliente', value: (row) => row.cliente_id || row.clienteId || '' },
+                      { label: 'Preço', value: (row) => row.preco || 0 },
+                      { label: 'Data', value: (row) => row.data_pedido || row.dataPedido || '' },
+                      { label: 'Endereço', value: (row) => row.endereco || '' },
+                    ], orders)
+                  }
+                >
+                  Baixar .xls
+                </button>
               </div>
-              {orders.map((order) => (
-                <div key={order.id || order.endereco} className="table__row">
-                  <div className="table__cell">
-                    <strong>#{order.id}</strong>
-                    <p className="muted">{order.data_pedido || 'Data não informada'}</p>
-                  </div>
-                  <span className="table__cell">{customers.find((c) => c.id === order.cliente_id)?.nome || 'Cliente'}</span>
-                  <span className="table__cell">{money(order.preco || 0)}</span>
+              <div className="table">
+                <div className="table__row table__head">
+                  <span>Pedido</span>
+                  <span>Cliente</span>
+                  <span>Preço</span>
                 </div>
-              ))}
-            </div>
+                {orders.map((order) => (
+                  <div key={order.id || order.endereco} className="table__row">
+                    <div className="table__cell">
+                      <strong>#{order.id}</strong>
+                      <p className="muted">{order.data_pedido || 'Data não informada'}</p>
+                    </div>
+                    <span className="table__cell">{customers.find((c) => c.id === order.cliente_id)?.nome || 'Cliente'}</span>
+                    <span className="table__cell">{money(order.preco || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState message="Nenhum pedido registrado." />
           )}
@@ -1436,27 +1767,46 @@ function OperationsPage({
           <SectionHeader title="Envio de produto" subtitle="Relaciona pedidos com produtos e datas de envio" />
           <ShipmentForm orders={orders} products={products} onSubmit={onCreateShipment} />
           {shipments.length ? (
-            <div className="table">
-              <div className="table__row table__head">
-                <span>Pedido</span>
-                <span>Produto</span>
-                <span>Qtd.</span>
-                <span>Preço</span>
+            <>
+              <div className="table__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    exportToXls<Shipment>('envios.xls', [
+                      { label: 'Pedido', value: (row) => row.pedido_id || row.pedidoId },
+                      { label: 'Produto', value: (row) => row.produto_id || row.produtoId },
+                      { label: 'Quantidade', value: (row) => row.quantidade || 0 },
+                      { label: 'Preço', value: (row) => row.preco || 0 },
+                      { label: 'Data envio', value: (row) => row.data_envio || row.dataEnvio || '' },
+                    ], shipments)
+                  }
+                >
+                  Baixar .xls
+                </button>
               </div>
-              {shipments.map((ship) => (
-                <div key={ship.id || `${ship.pedido_id}-${ship.produto_id}`} className="table__row">
-                  <div className="table__cell">
-                    <strong>Pedido #{ship.pedido_id}</strong>
-                    <p className="muted">{ship.data_envio || 'Data não informada'}</p>
-                  </div>
-                  <span className="table__cell">{products.find((p) => p.id === ship.produto_id)?.nome || 'Produto'}</span>
-                  <span className="table__cell">{ship.quantidade ?? 0}</span>
-                  <span className="table__cell">{money(ship.preco || 0)}</span>
+              <div className="table">
+                <div className="table__row table__head">
+                  <span>Pedido</span>
+                  <span>Produto</span>
+                  <span>Qtd.</span>
+                  <span>Preço</span>
                 </div>
-              ))}
-            </div>
+                {shipments.map((ship) => (
+                  <div key={ship.id || `${ship.pedido_id}-${ship.produto_id}`} className="table__row">
+                    <div className="table__cell">
+                      <strong>Pedido #{ship.pedido_id}</strong>
+                      <p className="muted">{ship.data_envio || 'Data não informada'}</p>
+                    </div>
+                    <span className="table__cell">{products.find((p) => p.id === ship.produto_id)?.nome || 'Produto'}</span>
+                    <span className="table__cell">{ship.quantidade ?? 0}</span>
+                    <span className="table__cell">{money(ship.preco || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
-            <EmptyState message="Nenhum envio registrado." />
+            <EmptyState message={'Nenhum envio registrado.'} />
           )}
         </section>
       )}
@@ -1466,23 +1816,42 @@ function OperationsPage({
           <SectionHeader title="Feedback" subtitle="Avaliações de clientes com notas e observações" />
           <FeedbackForm customers={customers} onSubmit={onCreateFeedback} />
           {feedbackRows.length ? (
-            <div className="table">
-              <div className="table__row table__head">
-                <span>Cliente</span>
-                <span>Nota</span>
-                <span>Data</span>
+            <>
+              <div className="table__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    exportToXls<FeedbackRow>('feedbacks.xls', [
+                      { label: 'Cliente', value: (row) => row.cliente_id || row.clienteId || '' },
+                      { label: 'Nota', value: (row) => row.nota ?? 0 },
+                      { label: 'Data', value: (row) => row.data || '' },
+                      { label: 'Contato', value: (row) => row.contato || '' },
+                      { label: 'Observação', value: (row) => row.observacao || '' },
+                    ], feedbackRows)
+                  }
+                >
+                  Baixar .xls
+                </button>
               </div>
-              {feedbackRows.map((fb) => (
-                <div key={fb.id || `${fb.cliente_id}-${fb.data}`} className="table__row">
-                  <div className="table__cell">
-                    <strong>{customers.find((c) => c.id === fb.cliente_id)?.nome || 'Cliente'}</strong>
-                    <p className="muted">{fb.observacao || 'Sem observação'}</p>
-                  </div>
-                  <span className="table__cell">{fb.nota ?? 0}</span>
-                  <span className="table__cell">{fb.data || '--'}</span>
+              <div className="table">
+                <div className="table__row table__head">
+                  <span>Cliente</span>
+                  <span>Nota</span>
+                  <span>Data</span>
                 </div>
-              ))}
-            </div>
+                {feedbackRows.map((fb) => (
+                  <div key={fb.id || `${fb.cliente_id}-${fb.data}`} className="table__row">
+                    <div className="table__cell">
+                      <strong>{customers.find((c) => c.id === fb.cliente_id)?.nome || 'Cliente'}</strong>
+                      <p className="muted">{fb.observacao || 'Sem observação'}</p>
+                    </div>
+                    <span className="table__cell">{fb.nota ?? 0}</span>
+                    <span className="table__cell">{fb.data || '--'}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState message="Nenhum feedback registrado." />
           )}
@@ -1598,13 +1967,15 @@ function Dashboard({ products, materials, suppliers, customers }: { products: Pr
 }
 
 function SimpleList<T extends { id?: number; nome?: string }>({ title, items, emptyMessage, descriptor }: { title: string; items: T[]; emptyMessage: string; descriptor?: (item: T) => string }) {
+  const safeItems = (items || []).filter(Boolean) as T[];
+
   return (
     <section className="panel__section">
       <SectionHeader title={title} />
-      {items.length ? (
+      {safeItems.length ? (
         <ul className="list list--bordered">
-          {items.map((item) => (
-            <li key={`${item.id}-${item.nome}`} className="list__item">
+          {safeItems.map((item, index) => (
+            <li key={`${item.id ?? item.nome ?? index}`} className="list__item">
               <div>
                 <strong>{item.nome || 'Registro'}</strong>
                 <span className="muted">{descriptor ? descriptor(item) : 'Carregado do backend'}</span>
@@ -1636,12 +2007,21 @@ function App() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [lastActivity, setLastActivity] = useState<number>(() => Number(localStorage.getItem('vc_last_activity')) || Date.now());
+
+  const markActivity = useCallback(() => {
+    const now = Date.now();
+    setLastActivity(now);
+    localStorage.setItem('vc_last_activity', String(now));
+  }, []);
 
   const guardedFetch = useCallback(
-    async <T,>(path: string): Promise<T> => {
+    async <T,>(path: string, key?: string): Promise<T> => {
       if (!authenticated) throw new Error('Faça login para carregar dados.');
-      const res = await request<T>(path);
-      return res.data;
+      const res = await request<any>(path);
+      const base = res.data ?? res;
+      const payload = key ? base?.[key] ?? (res as any)?.[key] : base;
+      return (payload ?? []) as T;
     },
     [authenticated, request]
   );
@@ -1663,8 +2043,8 @@ function App() {
 
   const loadProducts = useCallback(async () => {
     try {
-      const data = await guardedFetch<Product[]>('/products');
-      setProducts(data || []);
+      const data = await guardedFetch<Product[]>('/items', 'items');
+      setProducts((data || []).map(mapProductResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1672,8 +2052,8 @@ function App() {
 
   const loadMaterials = useCallback(async () => {
     try {
-      const data = await guardedFetch<RawMaterial[]>('/materials');
-      setMaterials(data || []);
+      const data = await guardedFetch<RawMaterial[]>('/materials', 'materials');
+      setMaterials((data || []).map(mapMaterialResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1681,8 +2061,8 @@ function App() {
 
   const loadSuppliers = useCallback(async () => {
     try {
-      const data = await guardedFetch<Supplier[]>('/suppliers');
-      setSuppliers(data || []);
+      const data = await guardedFetch<Supplier[]>('/suppliers', 'suppliers');
+      setSuppliers((data || []).map(mapSupplierResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1690,8 +2070,8 @@ function App() {
 
   const loadCustomers = useCallback(async () => {
     try {
-      const data = await guardedFetch<Customer[]>('/customers');
-      setCustomers(data || []);
+      const data = await guardedFetch<Customer[]>('/customers', 'customers');
+      setCustomers((data || []).map(mapCustomerResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1699,7 +2079,7 @@ function App() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const data = await guardedFetch<Address[]>('/addresses');
+      const data = await guardedFetch<Address[]>('/addresses', 'addresses');
       setAddresses(data || []);
     } catch (err: any) {
       setFeedback(err.message);
@@ -1708,8 +2088,8 @@ function App() {
 
   const loadPhones = useCallback(async () => {
     try {
-      const data = await guardedFetch<Phone[]>('/phones');
-      setPhones(data || []);
+      const data = await guardedFetch<Phone[]>('/phones', 'phones');
+      setPhones((data || []).map(mapPhoneResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1717,8 +2097,8 @@ function App() {
 
   const loadManufacturing = useCallback(async () => {
     try {
-      const data = await guardedFetch<Manufacturing[]>('/manufaturas');
-      setManufacturing(data || []);
+      const data = await guardedFetch<Manufacturing[]>('/manufacturing', 'manufacturing');
+      setManufacturing((data || []).map(mapManufacturingResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1726,8 +2106,8 @@ function App() {
 
   const loadDeliveries = useCallback(async () => {
     try {
-      const data = await guardedFetch<MaterialDelivery[]>('/entregas-material');
-      setDeliveries(data || []);
+      const data = await guardedFetch<MaterialDelivery[]>('/material-deliveries', 'deliveries');
+      setDeliveries((data || []).map(mapDeliveryResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1735,8 +2115,8 @@ function App() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const data = await guardedFetch<Order[]>('/pedidos');
-      setOrders(data || []);
+      const data = await guardedFetch<Order[]>('/orders', 'orders');
+      setOrders((data || []).map(mapOrderResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1744,17 +2124,18 @@ function App() {
 
   const loadShipments = useCallback(async () => {
     try {
-      const data = await guardedFetch<Shipment[]>('/envios');
-      setShipments(data || []);
+      const data = await guardedFetch<Shipment[]>('/product-shipments', 'shipments');
+      setShipments((data || []).map(mapShipmentResponse));
     } catch (err: any) {
+      setShipments([]);
       setFeedback(err.message);
     }
   }, [guardedFetch]);
 
   const loadFeedback = useCallback(async () => {
     try {
-      const data = await guardedFetch<FeedbackRow[]>('/feedback');
-      setFeedbackRows(data || []);
+      const data = await guardedFetch<FeedbackRow[]>('/feedback', 'feedbacks');
+      setFeedbackRows((data || []).map(mapFeedbackResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1777,126 +2158,238 @@ function App() {
     }
 
     loadAddresses();
-    if (page === 'dashboard' || page === 'items') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-    }
-    if (page === 'operations') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-      loadManufacturing();
-      loadDeliveries();
-      loadOrders();
-      loadShipments();
-      loadFeedback();
-    }
-    if (page === 'suppliers') loadSuppliers();
-    if (page === 'customers' || page === 'phones') loadCustomers();
-    if (page === 'phones') loadPhones();
-    if (page === 'addresses') loadAddresses();
+    loadProducts();
+    loadMaterials();
+    loadSuppliers();
+    loadCustomers();
+    loadPhones();
+    loadManufacturing();
+    loadDeliveries();
+    loadOrders();
+    loadShipments();
+    loadFeedback();
   }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
 
+  useEffect(() => {
+    const INACTIVITY_LIMIT = 20 * 60 * 1000;
+    const events = ['click', 'keydown', 'mousemove', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, markActivity));
+
+    const interval = setInterval(() => {
+      const stored = Number(localStorage.getItem('vc_last_activity')) || lastActivity;
+      if (token && Date.now() - stored > INACTIVITY_LIMIT) {
+        saveToken(null);
+        setPage('dashboard');
+        setFeedback('Sessão expirada por inatividade. Faça login novamente.');
+        window.location.href = '/';
+      }
+    }, 60 * 1000);
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, markActivity));
+      clearInterval(interval);
+    };
+  }, [lastActivity, markActivity, saveToken, setPage, token]);
+
   const handleCreateProduct = async (payload: Product) => {
-    const res = await request<Product>('/products', {
+    const res = await request<Product>('/items', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        codigo: payload.codigo.trim(),
+        nome: payload.nome.trim(),
+        descricao: normalizeOptionalString(payload.descricao),
+        categoria: normalizeOptionalString(payload.categoria) || 'produto',
+        quantidade: normalizeNumberValue(payload.quantidade),
+        preco: normalizeNumberValue(payload.preco),
+        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+      }),
     });
-    setFeedback('Produto salvo com sucesso.');
-    setProducts((prev) => [res.data, ...prev]);
+    setFeedback('Produto inserido com sucesso.');
+    const created = mapProductResponse({ ...res.data, imagem_url: payload.imagem_url ?? payload.imagemUrl });
+    setProducts((prev) => [created, ...prev]);
+    loadProducts();
+    setTimeout(loadProducts, 2000);
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const body: any = {
+      nome: payload.nome.trim(),
+      tipo: normalizeOptionalString(payload.tipo),
+      custo: normalizeNumberValue(payload.custo, true),
+      dataValidade: normalizeDateValue(payload.datavalidade ?? payload.dataValidade),
+      descricao: normalizeOptionalString(payload.descricao),
+      tamanho: normalizeOptionalString(payload.tamanho),
+      material: normalizeOptionalString(payload.material),
+      acessorio: normalizeOptionalString(payload.acessorio),
+    };
+
     const res = await request<RawMaterial>('/materials', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
-    setFeedback('Matéria-prima salva com sucesso.');
-    setMaterials((prev) => [res.data, ...prev]);
+    setFeedback('Matéria-prima inserida com sucesso.');
+    const created = mapMaterialResponse({ ...payload, ...res.data });
+    setMaterials((prev) => [created, ...prev]);
+    loadMaterials();
+    setTimeout(loadMaterials, 2000);
   };
 
   const handleCreateSupplier = async (payload: Supplier) => {
+    const phoneDigits = digitsOnly(payload.telefone || '');
+    const ddiValue = normalizeOptionalString(payload.ddi) || '';
+
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
-      body: JSON.stringify({ ...payload, razaoSocial: payload.razao_social }),
+      body: JSON.stringify({
+        cnpj: digitsOnly(payload.cnpj),
+        razaoSocial: payload.razao_social.trim(),
+        contato: payload.contato.trim(),
+        email: normalizeOptionalString(payload.email),
+        telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
+        enderecoId: normalizeIdValue(payload.endereco_id),
+      }),
     });
     setFeedback('Fornecedor salvo com sucesso.');
-    setSuppliers((prev) => [res.data, ...prev]);
+    setSuppliers((prev) => [mapSupplierResponse(res.data), ...prev]);
+    loadSuppliers();
+    setTimeout(loadSuppliers, 2000);
   };
 
   const handleCreateCustomer = async (payload: Customer) => {
     const res = await request<Customer>('/customers', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        nome: payload.nome.trim(),
+        email: normalizeOptionalString(payload.email),
+        dataNascimento: normalizeDateValue(payload.data_nascimento),
+        cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
+        cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
+        enderecoId: normalizeIdValue(payload.endereco_id),
+      }),
     });
     setFeedback('Cliente salvo com sucesso.');
-    setCustomers((prev) => [res.data, ...prev]);
+    setCustomers((prev) => [mapCustomerResponse(res.data), ...prev]);
+    loadCustomers();
+    setTimeout(loadCustomers, 2000);
   };
 
   const handleCreateAddress = async (payload: Address) => {
+    const body = {
+      rua: payload.rua.trim(),
+      numero: digitsOnly(payload.numero),
+      cep: digitsOnly(payload.cep),
+    };
+
     const res = await request<Address>('/addresses', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+    const created = res.data || { ...body, id: Date.now() };
     setFeedback('Endereço salvo com sucesso.');
-    setAddresses((prev) => [res.data, ...prev]);
+    setAddresses((prev) => [created, ...prev]);
+    loadAddresses();
+    setTimeout(loadAddresses, 2000);
   };
 
   const handleCreatePhone = async (payload: Phone) => {
     const res = await request<Phone>('/phones', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id),
+        ddd: digitsOnly(payload.ddd || ''),
+        numero: digitsOnly(payload.numero || ''),
+      }),
     });
     setFeedback('Telefone salvo com sucesso.');
-    setPhones((prev) => [res.data, ...prev]);
+    setPhones((prev) => [mapPhoneResponse(res.data), ...prev]);
+    loadPhones();
+    setTimeout(loadPhones, 2000);
   };
 
   const handleCreateManufacturing = async (payload: Manufacturing) => {
-    const res = await request<Manufacturing>('/manufaturas', {
+    const res = await request<Manufacturing>('/manufacturing', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        produtoId: normalizeIdValue(payload.produto_id ?? payload.produtoId),
+        materialId: normalizeIdValue(payload.material_id ?? payload.materialId),
+        quantidadeMaterial: normalizeNumberValue(payload.quantidade_material, true),
+      }),
     });
     setFeedback('Manufatura registrada.');
-    setManufacturing((prev) => [res.data, ...prev]);
+    setManufacturing((prev) => [mapManufacturingResponse(res.data), ...prev]);
+    loadManufacturing();
+    setTimeout(loadManufacturing, 2000);
   };
 
   const handleCreateDelivery = async (payload: MaterialDelivery) => {
-    const res = await request<MaterialDelivery>('/entregas-material', {
+    const res = await request<MaterialDelivery>('/material-deliveries', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        materialId: normalizeIdValue(payload.material_id ?? payload.materialId),
+        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+        quantidade: normalizeNumberValue(payload.quantidade, true),
+        dataEntrada: normalizeDateValue(payload.data_entrada ?? payload.dataEntrada),
+        custo: normalizeNumberValue(payload.custo, true),
+      }),
     });
     setFeedback('Entrega registrada.');
-    setDeliveries((prev) => [res.data, ...prev]);
+    setDeliveries((prev) => [mapDeliveryResponse(res.data), ...prev]);
+    loadDeliveries();
+    setTimeout(loadDeliveries, 2000);
   };
 
   const handleCreateOrder = async (payload: Order) => {
-    const res = await request<Order>('/pedidos', {
+    const res = await request<Order>('/orders', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id ?? payload.clienteId),
+        endereco: normalizeOptionalString(payload.endereco),
+        preco: normalizeNumberValue(payload.preco, true),
+        dataPedido: normalizeDateValue(payload.data_pedido ?? payload.dataPedido),
+        cpfPresentado: payload.cpf_presentado ? digitsOnly(payload.cpf_presentado) : undefined,
+        nomePresentado: normalizeOptionalString(payload.nome_presentado),
+        emailPresentado: normalizeOptionalString(payload.email_presentado),
+        enderecoPresentado: normalizeOptionalString(payload.endereco_presentado),
+      }),
     });
     setFeedback('Pedido registrado.');
-    setOrders((prev) => [res.data, ...prev]);
+    setOrders((prev) => [mapOrderResponse(res.data), ...prev]);
+    loadOrders();
+    setTimeout(loadOrders, 2000);
   };
 
   const handleCreateShipment = async (payload: Shipment) => {
-    const res = await request<Shipment>('/envios', {
+    const res = await request<Shipment>('/product-shipments', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        pedidoId: normalizeIdValue(payload.pedido_id ?? payload.pedidoId),
+        produtoId: normalizeIdValue(payload.produto_id ?? payload.produtoId),
+        quantidade: normalizeNumberValue(payload.quantidade, true),
+        dataEnvio: normalizeDateValue(payload.data_envio ?? payload.dataEnvio),
+        preco: normalizeNumberValue(payload.preco, true),
+      }),
     });
     setFeedback('Envio registrado.');
-    setShipments((prev) => [res.data, ...prev]);
+    setShipments((prev) => [mapShipmentResponse(res.data), ...prev]);
+    loadShipments();
+    setTimeout(loadShipments, 2000);
   };
 
   const handleCreateFeedback = async (payload: FeedbackRow) => {
     const res = await request<FeedbackRow>('/feedback', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id ?? payload.clienteId),
+        data: normalizeDateValue(payload.data),
+        nota: normalizeNumberValue(payload.nota, true),
+        contato: normalizeOptionalString(payload.contato),
+        observacao: normalizeOptionalString(payload.observacao),
+      }),
     });
     setFeedback('Feedback registrado.');
-    setFeedbackRows((prev) => [res.data, ...prev]);
+    setFeedbackRows((prev) => [mapFeedbackResponse(res.data), ...prev]);
+    loadFeedback();
+    setTimeout(loadFeedback, 2000);
   };
 
   const content = useMemo(() => {
@@ -2000,7 +2493,8 @@ function App() {
               title="Telefones"
               items={phones as any}
               emptyMessage="Nenhum telefone encontrado."
-              descriptor={(phone: Phone) => `${maskPhone(`${phone.ddd || ''}${phone.numero || ''}`)}`}
+              descriptor={(phone: Phone) =>
+                formatPhoneInput(phone.ddi || '55', phone.ddd || '', phone.numero || '')}
             />
           </div>
         );
@@ -2020,6 +2514,7 @@ function App() {
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
         onSuccess={(tok) => {
+          markActivity();
           saveToken(tok);
           setLoginOpen(false);
         }}
