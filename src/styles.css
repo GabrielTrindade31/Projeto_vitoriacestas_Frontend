@@ -145,6 +145,7 @@ textarea {
 
 .grid--4-fixed {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
 }
 
 .card {
