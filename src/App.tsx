@@ -214,9 +214,24 @@ const formatPhoneInput = (ddi: string, ddd: string, numero: string) => {
 const DDI_OPTIONS = [
   { code: '55', label: 'Brasil', flag: '🇧🇷' },
   { code: '1', label: 'Estados Unidos/Canadá', flag: '🇺🇸' },
-  { code: '44', label: 'Reino Unido', flag: '🇬🇧' },
+  { code: '52', label: 'México', flag: '🇲🇽' },
+  { code: '54', label: 'Argentina', flag: '🇦🇷' },
+  { code: '56', label: 'Chile', flag: '🇨🇱' },
+  { code: '57', label: 'Colômbia', flag: '🇨🇴' },
   { code: '351', label: 'Portugal', flag: '🇵🇹' },
   { code: '34', label: 'Espanha', flag: '🇪🇸' },
+  { code: '44', label: 'Reino Unido', flag: '🇬🇧' },
+  { code: '49', label: 'Alemanha', flag: '🇩🇪' },
+  { code: '33', label: 'França', flag: '🇫🇷' },
+  { code: '39', label: 'Itália', flag: '🇮🇹' },
+  { code: '81', label: 'Japão', flag: '🇯🇵' },
+  { code: '82', label: 'Coreia do Sul', flag: '🇰🇷' },
+  { code: '86', label: 'China', flag: '🇨🇳' },
+  { code: '91', label: 'Índia', flag: '🇮🇳' },
+  { code: '7', label: 'Rússia', flag: '🇷🇺' },
+  { code: '61', label: 'Austrália', flag: '🇦🇺' },
+  { code: '64', label: 'Nova Zelândia', flag: '🇳🇿' },
+  { code: '27', label: 'África do Sul', flag: '🇿🇦' },
 ];
 
 const mapProductResponse = (product: any): Product => ({
@@ -676,7 +691,7 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--4-fixed">
+      <div className="grid grid--4-fixed phone-grid">
         <label className="form__group">
           <span>DDI</span>
           <select
@@ -903,6 +918,60 @@ function ImagePicker({
         )}
       </div>
       {(preview || localPreview) && <img src={localPreview || preview} className="upload__preview" alt="Pré-visualização" />}
+      {error && <p className="form__error">{error}</p>}
+    </div>
+  );
+}
+
+function BulkImport({ label, onImport, exampleHint }: { label: string; onImport: (rows: any[]) => Promise<void>; exampleHint: string }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const text = await file.text();
+      let rows: any[] = [];
+      try {
+        const parsed = JSON.parse(text);
+        rows = Array.isArray(parsed) ? parsed : Array.isArray((parsed as any)?.data) ? (parsed as any).data : [];
+      } catch (err) {
+        const lines = text.split(/\r?\n/).filter(Boolean);
+        if (lines.length > 1) {
+          const headers = lines[0].split(/[,;\t]/).map((h) => h.trim());
+          rows = lines.slice(1).map((line) => {
+            const values = line.split(/[,;\t]/);
+            return headers.reduce((acc, header, idx) => {
+              acc[header] = values[idx]?.trim();
+              return acc;
+            }, {} as any);
+          });
+        }
+      }
+
+      if (!rows.length) {
+        throw new Error('Nenhuma linha encontrada no arquivo.');
+      }
+
+      await onImport(rows);
+    } catch (err: any) {
+      setError(err.message || 'Falha ao importar.');
+    } finally {
+      setLoading(false);
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div className="importer">
+      <label className="upload">
+        <input type="file" accept=".json,.csv,.txt" onChange={handleFile} />
+        <span>{loading ? 'Importando...' : label}</span>
+      </label>
+      <small className="muted">{exampleHint}</small>
       {error && <p className="form__error">{error}</p>}
     </div>
   );
@@ -1897,7 +1966,7 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
   );
 }
 
-function SuppliersPage({ suppliers, addresses, onCreate }: { suppliers: Supplier[]; addresses: Address[]; onCreate: (supplier: Supplier) => Promise<void> }) {
+function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers: Supplier[]; addresses: Address[]; onCreate: (supplier: Supplier) => Promise<void>; onImport: (rows: any[]) => Promise<void> }) {
   return (
     <div className="panel">
       <header className="panel__header">
@@ -1907,6 +1976,11 @@ function SuppliersPage({ suppliers, addresses, onCreate }: { suppliers: Supplier
         </div>
       </header>
       <SupplierForm addresses={addresses} onSubmit={onCreate} />
+      <BulkImport
+        label="Importar fornecedores (.csv/.json)"
+        exampleHint="Cabeçalhos esperados: cnpj, razaoSocial, contato, email, telefone, enderecoId"
+        onImport={onImport}
+      />
       <section className="panel__section">
         <SectionHeader title="Últimos fornecedores" />
         {suppliers.length ? (
@@ -2192,6 +2266,13 @@ function App() {
   }, [lastActivity, markActivity, saveToken, setPage, token]);
 
   const handleCreateProduct = async (payload: Product) => {
+    const duplicated = products.find(
+      (prod) => prod.codigo.trim() === payload.codigo.trim() || prod.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase()
+    );
+    if (duplicated) {
+      setFeedback('Produto já cadastrado com este código ou nome.');
+      return;
+    }
     const res = await request<Product>('/items', {
       method: 'POST',
       body: JSON.stringify({
@@ -2202,6 +2283,7 @@ function App() {
         quantidade: normalizeNumberValue(payload.quantidade),
         preco: normalizeNumberValue(payload.preco),
         fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+        imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
       }),
     });
     setFeedback('Produto inserido com sucesso.');
@@ -2212,6 +2294,14 @@ function App() {
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const duplicated = materials.find(
+      (mat) => mat.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
+        (normalizeOptionalString(mat.tipo)?.toLowerCase() || '') === (normalizeOptionalString(payload.tipo)?.toLowerCase() || '')
+    );
+    if (duplicated) {
+      setFeedback('Matéria-prima já cadastrada com este nome/tipo.');
+      return;
+    }
     const body: any = {
       nome: payload.nome.trim(),
       tipo: normalizeOptionalString(payload.tipo),
@@ -2221,6 +2311,7 @@ function App() {
       tamanho: normalizeOptionalString(payload.tamanho),
       material: normalizeOptionalString(payload.material),
       acessorio: normalizeOptionalString(payload.acessorio),
+      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
     };
 
     const res = await request<RawMaterial>('/materials', {
@@ -2235,6 +2326,11 @@ function App() {
   };
 
   const handleCreateSupplier = async (payload: Supplier) => {
+    const cnpjDigits = digitsOnly(payload.cnpj);
+    if (suppliers.some((sup) => digitsOnly(sup.cnpj) === cnpjDigits)) {
+      setFeedback('Fornecedor já cadastrado com este CNPJ.');
+      return;
+    }
     const phoneDigits = digitsOnly(payload.telefone || '');
     const ddiValue = normalizeOptionalString(payload.ddi) || '';
 
@@ -2256,6 +2352,16 @@ function App() {
   };
 
   const handleCreateCustomer = async (payload: Customer) => {
+    const cpfDigits = digitsOnly(payload.cpf || '');
+    const cnpjDigits = digitsOnly(payload.cnpj || '');
+    if (customers.some((cust) => digitsOnly(cust.cpf || '') === cpfDigits && cpfDigits)) {
+      setFeedback('Cliente já cadastrado com este CPF.');
+      return;
+    }
+    if (customers.some((cust) => digitsOnly(cust.cnpj || '') === cnpjDigits && cnpjDigits)) {
+      setFeedback('Cliente já cadastrado com este CNPJ.');
+      return;
+    }
     const res = await request<Customer>('/customers', {
       method: 'POST',
       body: JSON.stringify({
@@ -2279,6 +2385,16 @@ function App() {
       numero: digitsOnly(payload.numero),
       cep: digitsOnly(payload.cep),
     };
+
+    const exists = addresses.find(
+      (addr) => addr.rua.trim().toLowerCase() === body.rua.trim().toLowerCase() &&
+        digitsOnly(addr.numero) === body.numero &&
+        digitsOnly(addr.cep) === body.cep
+    );
+    if (exists) {
+      setFeedback('Endereço já cadastrado.');
+      return;
+    }
 
     const res = await request<Address>('/addresses', {
       method: 'POST',
@@ -2304,6 +2420,42 @@ function App() {
     setPhones((prev) => [mapPhoneResponse(res.data), ...prev]);
     loadPhones();
     setTimeout(loadPhones, 2000);
+  };
+
+  const importAddresses = async (rows: any[]) => {
+    for (const row of rows) {
+      if (!row.rua || !row.numero || !row.cep) continue;
+      await handleCreateAddress({ rua: row.rua, numero: String(row.numero), cep: String(row.cep) });
+    }
+  };
+
+  const importSuppliers = async (rows: any[]) => {
+    for (const row of rows) {
+      if (!row.cnpj || !row.razaoSocial || !row.contato) continue;
+      await handleCreateSupplier({
+        cnpj: String(row.cnpj),
+        razao_social: row.razaoSocial || row.razao_social || '',
+        contato: row.contato || '',
+        email: row.email,
+        telefone: row.telefone,
+        ddi: row.ddi,
+        endereco_id: normalizeIdValue(row.enderecoId ?? row.endereco_id) || undefined,
+      });
+    }
+  };
+
+  const importCustomers = async (rows: any[]) => {
+    for (const row of rows) {
+      if (!row.nome || (!row.cpf && !row.cnpj)) continue;
+      await handleCreateCustomer({
+        nome: row.nome,
+        email: row.email,
+        data_nascimento: row.dataNascimento || row.data_nascimento || row.nascimento,
+        cpf: row.cpf,
+        cnpj: row.cnpj,
+        endereco_id: normalizeIdValue(row.enderecoId ?? row.endereco_id) || undefined,
+      });
+    }
   };
 
   const handleCreateManufacturing = async (payload: Manufacturing) => {
@@ -2442,20 +2594,25 @@ function App() {
           />
         );
       case 'suppliers':
-        return <SuppliersPage suppliers={suppliers} addresses={addresses} onCreate={handleCreateSupplier} />;
+        return <SuppliersPage suppliers={suppliers} addresses={addresses} onCreate={handleCreateSupplier} onImport={importSuppliers} />;
       case 'customers':
         return (
           <div className="panel">
-            <header className="panel__header">
-              <div>
-                <h1>Clientes</h1>
-                <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
-              </div>
-            </header>
-            <CustomerForm addresses={addresses} onSubmit={handleCreateCustomer} />
-            <SimpleList
-              title="Clientes"
-              items={customers}
+      <header className="panel__header">
+        <div>
+          <h1>Clientes</h1>
+          <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
+        </div>
+      </header>
+      <CustomerForm addresses={addresses} onSubmit={handleCreateCustomer} />
+      <BulkImport
+        label="Importar clientes (.csv/.json)"
+        exampleHint="Campos: nome, email, dataNascimento, cpf/cnpj, enderecoId"
+        onImport={importCustomers}
+      />
+      <SimpleList
+        title="Clientes"
+        items={customers}
               emptyMessage="Nenhum cliente encontrado."
               descriptor={(item) => item.email || 'Sem e-mail informado'}
             />
@@ -2464,16 +2621,21 @@ function App() {
       case 'addresses':
         return (
           <div className="panel">
-            <header className="panel__header">
-              <div>
-                <h1>Endereços</h1>
-                <p className="muted">Rua, número e CEP são obrigatórios.</p>
-              </div>
-            </header>
-            <AddressForm onSubmit={handleCreateAddress} />
-            <SimpleList
-              title="Endereços"
-              items={addresses as any}
+      <header className="panel__header">
+        <div>
+          <h1>Endereços</h1>
+          <p className="muted">Rua, número e CEP são obrigatórios.</p>
+        </div>
+      </header>
+      <AddressForm onSubmit={handleCreateAddress} />
+      <BulkImport
+        label="Importar endereços (.csv/.json)"
+        exampleHint="Campos: rua, numero, cep"
+        onImport={importAddresses}
+      />
+      <SimpleList
+        title="Endereços"
+        items={addresses as any}
               emptyMessage="Nenhum endereço encontrado."
               descriptor={(addr: Address) => `${addr.rua}, ${addr.numero} - CEP ${addr.cep}`}
             />
