@@ -41,6 +41,7 @@ interface Supplier {
   contato: string;
   email?: string | null;
   telefone?: string | null;
+  ddi?: string | null;
   endereco_id?: number | null;
 }
 
@@ -53,7 +54,9 @@ interface Product {
   quantidade: number;
   preco: number;
   fornecedor_id?: number | null;
+  fornecedorId?: number | null;
   imagem_url?: string;
+  imagemUrl?: string;
 }
 
 interface RawMaterial {
@@ -62,16 +65,19 @@ interface RawMaterial {
   tipo?: string;
   custo?: number;
   datavalidade?: string;
+  dataValidade?: string;
   descricao?: string;
   tamanho?: string;
   material?: string;
   acessorio?: string;
   imagem_url?: string;
+  imagemUrl?: string;
 }
 
 interface Phone {
   id?: number;
   cliente_id?: number;
+  ddi?: string;
   ddd?: string;
   numero?: string;
 }
@@ -131,10 +137,34 @@ type Page = 'dashboard' | 'items' | 'operations' | 'suppliers' | 'customers' | '
 
 const digitsOnly = (value: string) => value.replace(/\D+/g, '');
 
+const normalizeIdValue = (value?: number | string | null) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeOptionalString = (value?: string | null) => {
+  const trimmed = value?.trim() || '';
+  return trimmed ? trimmed : null;
+};
+
+const normalizeNumberValue = (value?: number | string | null, allowNull = false) => {
+  const normalized = normalizeIdValue(value);
+  if (normalized === null) return allowNull ? null : 0;
+  return normalized;
+};
+
+const normalizeDateValue = (value?: string | null) => {
+  if (!value) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value) || /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().split('T')[0];
+};
+
 const normalizePhoneDigits = (value: string) => {
   const digits = digitsOnly(value);
-  const withoutCountry = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
-  return withoutCountry.slice(0, 11);
+  return digits.slice(0, 13);
 };
 
 const maskCpf = (value: string) => {
@@ -154,18 +184,86 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 };
 
-const maskPhone = (value: string) => {
+const maskPhone = (value: string, ddi = '55') => {
   const stripped = normalizePhoneDigits(value);
   const digits = stripped;
   if (!digits) return '';
-  const ddd = digits.slice(0, 2);
-  const rest = digits.slice(2);
-  if (!rest) return `+55 (${ddd}`;
-  if (rest.length <= 4) return `+55 (${ddd}) ${rest}`;
+  const base = digits.slice(-11);
+  const country = digits.length > 11 ? digits.slice(0, digits.length - 11) : ddi;
+  const ddd = base.slice(0, 2).padStart(2, '0');
+  const rest = base.slice(2);
+  if (!rest) return `+${country} (${ddd}`;
+  if (rest.length <= 4) return `+${country} (${ddd}) ${rest}`;
   const first = rest.slice(0, rest.length - 4);
   const last = rest.slice(-4);
-  return `+55 (${ddd}) ${first}-${last}`;
+  return `+${country} (${ddd}) ${first}-${last}`;
 };
+
+const mapProductResponse = (product: any): Product => ({
+  ...product,
+  fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+  fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+  imagem_url: product?.imagem_url ?? product?.imagemUrl,
+  imagemUrl: product?.imagemUrl ?? product?.imagem_url,
+});
+
+const mapMaterialResponse = (material: any): RawMaterial => ({
+  ...material,
+  datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
+  dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
+  imagem_url: material?.imagem_url ?? material?.imagemUrl,
+  imagemUrl: material?.imagemUrl ?? material?.imagem_url,
+});
+
+const mapSupplierResponse = (supplier: any): Supplier => ({
+  ...supplier,
+  endereco_id: normalizeIdValue(supplier?.endereco_id ?? supplier?.enderecoId),
+  ddi: supplier?.ddi ?? null,
+  telefone: supplier?.telefone ?? null,
+});
+
+const mapCustomerResponse = (customer: any): Customer => ({
+  ...customer,
+  endereco_id: normalizeIdValue(customer?.endereco_id ?? customer?.enderecoId) ?? undefined,
+});
+
+const mapPhoneResponse = (phone: any): Phone => ({
+  ...phone,
+  cliente_id: normalizeIdValue(phone?.cliente_id ?? phone?.clienteId) ?? undefined,
+  ddi: phone?.ddi ?? '55',
+});
+
+const mapManufacturingResponse = (row: any): Manufacturing => ({
+  ...row,
+  produto_id: normalizeIdValue(row?.produto_id ?? row?.produtoId),
+  material_id: normalizeIdValue(row?.material_id ?? row?.materialId),
+  quantidade_material: normalizeNumberValue(row?.quantidade_material ?? row?.quantidadeMaterial, true) ?? undefined,
+});
+
+const mapDeliveryResponse = (delivery: any): MaterialDelivery => ({
+  ...delivery,
+  material_id: normalizeIdValue(delivery?.material_id ?? delivery?.materialId),
+  fornecedor_id: normalizeIdValue(delivery?.fornecedor_id ?? delivery?.fornecedorId),
+  data_entrada: delivery?.data_entrada ?? delivery?.dataEntrada ?? null,
+});
+
+const mapOrderResponse = (order: any): Order => ({
+  ...order,
+  cliente_id: normalizeIdValue(order?.cliente_id ?? order?.clienteId),
+  data_pedido: order?.data_pedido ?? order?.dataPedido ?? null,
+});
+
+const mapShipmentResponse = (shipment: any): Shipment => ({
+  ...shipment,
+  pedido_id: normalizeIdValue(shipment?.pedido_id ?? shipment?.pedidoId),
+  produto_id: normalizeIdValue(shipment?.produto_id ?? shipment?.produtoId),
+  data_envio: shipment?.data_envio ?? shipment?.dataEnvio ?? null,
+});
+
+const mapFeedbackResponse = (feedback: any): FeedbackRow => ({
+  ...feedback,
+  cliente_id: normalizeIdValue(feedback?.cliente_id ?? feedback?.clienteId),
+});
 
 const money = (value: number | string) => `R$ ${Number(value || 0).toFixed(2)}`;
 
@@ -505,7 +603,7 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
 }
 
 function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (phone: Phone) => Promise<void> }) {
-  const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddd: '', numero: '' });
+  const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -514,8 +612,15 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, ddd: digitsOnly(form.ddd).slice(0, 3), numero: digitsOnly(form.numero).slice(0, 9) });
-      setForm({ cliente_id: undefined, ddd: '', numero: '' });
+      const ddi = digitsOnly(form.ddi || '');
+      await onSubmit({
+        ...form,
+        ddi: ddi || '55',
+        ddd: digitsOnly(form.ddd).slice(0, 3),
+        numero: digitsOnly(form.numero).slice(0, 9),
+        cliente_id: form.cliente_id ? Number(form.cliente_id) : undefined,
+      });
+      setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar telefone');
     } finally {
@@ -523,11 +628,23 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
     }
   };
 
-  const displayValue = maskPhone(`${form.ddd || ''}${form.numero || ''}`);
+  const displayValue = maskPhone(`${form.ddi || ''}${form.ddd || ''}${form.numero || ''}`, form.ddi || '55');
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--3">
+      <div className="grid grid--4">
+        <label className="form__group">
+          <span>DDI</span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={form.ddi || ''}
+            maxLength={3}
+            placeholder="55"
+            onChange={(e) => setForm({ ...form, ddi: digitsOnly(e.target.value).slice(0, 3) })}
+            required
+          />
+        </label>
         <label className="form__group">
           <span>DDD</span>
           <input
@@ -582,26 +699,37 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
 }
 
 function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (supplier: Supplier) => Promise<void> }) {
-  const [form, setForm] = useState<Supplier>({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
+  const [form, setForm] = useState<Supplier>({
+    cnpj: '',
+    razao_social: '',
+    contato: '',
+    email: '',
+    telefone: '',
+    ddi: '55',
+    endereco_id: undefined,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const maskedPhone = maskPhone(form.telefone || '');
+  const maskedPhone = maskPhone(`${form.ddi || ''}${form.telefone || ''}`, form.ddi || '55');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     try {
+      const ddi = digitsOnly(form.ddi || '');
+      const phoneDigits = normalizePhoneDigits(form.telefone || '');
       await onSubmit({
         ...form,
         razao_social: form.razao_social.trim(),
         cnpj: digitsOnly(form.cnpj),
-        email: form.email ? form.email : null,
-        telefone: form.telefone ? normalizePhoneDigits(form.telefone) : null,
-        endereco_id: form.endereco_id ? Number(form.endereco_id) : null,
+        email: normalizeOptionalString(form.email),
+        telefone: phoneDigits ? `${ddi || '55'}${phoneDigits}` : null,
+        ddi: ddi || null,
+        endereco_id: normalizeIdValue(form.endereco_id),
       });
-      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', endereco_id: undefined });
+      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar fornecedor');
     } finally {
@@ -632,11 +760,19 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
         <label className="form__group">
           <span>Telefone</span>
-          <input
-            value={form.telefone || ''}
-            onChange={(e) => setForm({ ...form, telefone: normalizePhoneDigits(e.target.value) })}
-            placeholder="+55 (11) 99999-0000"
-          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              value={form.ddi || ''}
+              onChange={(e) => setForm({ ...form, ddi: digitsOnly(e.target.value).slice(0, 3) })}
+              placeholder="55"
+              style={{ width: '72px' }}
+            />
+            <input
+              value={form.telefone || ''}
+              onChange={(e) => setForm({ ...form, telefone: normalizePhoneDigits(e.target.value) })}
+              placeholder="11999990000"
+            />
+          </div>
           {form.telefone && <small className="muted">{maskedPhone}</small>}
         </label>
         <label className="form__group">
@@ -806,7 +942,18 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, imagem_url: imageUrl });
+      await onSubmit({
+        ...form,
+        nome: form.nome.trim(),
+        tipo: normalizeOptionalString(form.tipo) || undefined,
+        custo: normalizeNumberValue(form.custo, true) ?? undefined,
+        datavalidade: normalizeDateValue(form.datavalidade || form.dataValidade || null) || undefined,
+        descricao: normalizeOptionalString(form.descricao) || undefined,
+        tamanho: normalizeOptionalString(form.tamanho) || undefined,
+        material: normalizeOptionalString(form.material) || undefined,
+        acessorio: normalizeOptionalString(form.acessorio) || undefined,
+        imagem_url: imageUrl || undefined,
+      });
       setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
       setImageUrl(undefined);
     } catch (err: any) {
@@ -1636,6 +1783,13 @@ function App() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [lastActivity, setLastActivity] = useState<number>(() => Number(localStorage.getItem('vc_last_activity')) || Date.now());
+
+  const markActivity = useCallback(() => {
+    const now = Date.now();
+    setLastActivity(now);
+    localStorage.setItem('vc_last_activity', String(now));
+  }, []);
 
   const guardedFetch = useCallback(
     async <T,>(path: string): Promise<T> => {
@@ -1664,7 +1818,7 @@ function App() {
   const loadProducts = useCallback(async () => {
     try {
       const data = await guardedFetch<Product[]>('/products');
-      setProducts(data || []);
+      setProducts((data || []).map(mapProductResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1673,7 +1827,7 @@ function App() {
   const loadMaterials = useCallback(async () => {
     try {
       const data = await guardedFetch<RawMaterial[]>('/materials');
-      setMaterials(data || []);
+      setMaterials((data || []).map(mapMaterialResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1682,7 +1836,7 @@ function App() {
   const loadSuppliers = useCallback(async () => {
     try {
       const data = await guardedFetch<Supplier[]>('/suppliers');
-      setSuppliers(data || []);
+      setSuppliers((data || []).map(mapSupplierResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1691,7 +1845,7 @@ function App() {
   const loadCustomers = useCallback(async () => {
     try {
       const data = await guardedFetch<Customer[]>('/customers');
-      setCustomers(data || []);
+      setCustomers((data || []).map(mapCustomerResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1709,7 +1863,7 @@ function App() {
   const loadPhones = useCallback(async () => {
     try {
       const data = await guardedFetch<Phone[]>('/phones');
-      setPhones(data || []);
+      setPhones((data || []).map(mapPhoneResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1718,7 +1872,7 @@ function App() {
   const loadManufacturing = useCallback(async () => {
     try {
       const data = await guardedFetch<Manufacturing[]>('/manufaturas');
-      setManufacturing(data || []);
+      setManufacturing((data || []).map(mapManufacturingResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1727,7 +1881,7 @@ function App() {
   const loadDeliveries = useCallback(async () => {
     try {
       const data = await guardedFetch<MaterialDelivery[]>('/entregas-material');
-      setDeliveries(data || []);
+      setDeliveries((data || []).map(mapDeliveryResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1736,7 +1890,7 @@ function App() {
   const loadOrders = useCallback(async () => {
     try {
       const data = await guardedFetch<Order[]>('/pedidos');
-      setOrders(data || []);
+      setOrders((data || []).map(mapOrderResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1745,7 +1899,7 @@ function App() {
   const loadShipments = useCallback(async () => {
     try {
       const data = await guardedFetch<Shipment[]>('/envios');
-      setShipments(data || []);
+      setShipments((data || []).map(mapShipmentResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1754,7 +1908,7 @@ function App() {
   const loadFeedback = useCallback(async () => {
     try {
       const data = await guardedFetch<FeedbackRow[]>('/feedback');
-      setFeedbackRows(data || []);
+      setFeedbackRows((data || []).map(mapFeedbackResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -1777,63 +1931,113 @@ function App() {
     }
 
     loadAddresses();
-    if (page === 'dashboard' || page === 'items') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-    }
-    if (page === 'operations') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-      loadManufacturing();
-      loadDeliveries();
-      loadOrders();
-      loadShipments();
-      loadFeedback();
-    }
-    if (page === 'suppliers') loadSuppliers();
-    if (page === 'customers' || page === 'phones') loadCustomers();
-    if (page === 'phones') loadPhones();
-    if (page === 'addresses') loadAddresses();
+    loadProducts();
+    loadMaterials();
+    loadSuppliers();
+    loadCustomers();
+    loadPhones();
+    loadManufacturing();
+    loadDeliveries();
+    loadOrders();
+    loadShipments();
+    loadFeedback();
   }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
+
+  useEffect(() => {
+    const INACTIVITY_LIMIT = 20 * 60 * 1000;
+    const events = ['click', 'keydown', 'mousemove', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, markActivity));
+
+    const interval = setInterval(() => {
+      const stored = Number(localStorage.getItem('vc_last_activity')) || lastActivity;
+      if (token && Date.now() - stored > INACTIVITY_LIMIT) {
+        saveToken(null);
+        setPage('dashboard');
+        setFeedback('Sessão expirada por inatividade. Faça login novamente.');
+        window.location.href = '/';
+      }
+    }, 60 * 1000);
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, markActivity));
+      clearInterval(interval);
+    };
+  }, [lastActivity, markActivity, saveToken, setPage, token]);
 
   const handleCreateProduct = async (payload: Product) => {
     const res = await request<Product>('/products', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        codigo: payload.codigo.trim(),
+        nome: payload.nome.trim(),
+        descricao: normalizeOptionalString(payload.descricao),
+        categoria: normalizeOptionalString(payload.categoria) || null,
+        quantidade: normalizeNumberValue(payload.quantidade),
+        preco: normalizeNumberValue(payload.preco),
+        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+        imagemUrl: payload.imagem_url ?? payload.imagemUrl ?? null,
+      }),
     });
-    setFeedback('Produto salvo com sucesso.');
-    setProducts((prev) => [res.data, ...prev]);
+    setFeedback('Produto inserido com sucesso.');
+    setProducts((prev) => [mapProductResponse(res.data), ...prev]);
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const body: any = {
+      nome: payload.nome.trim(),
+      tipo: normalizeOptionalString(payload.tipo),
+      custo: normalizeNumberValue(payload.custo, true),
+      dataValidade: normalizeDateValue(payload.datavalidade ?? payload.dataValidade),
+      descricao: normalizeOptionalString(payload.descricao),
+      tamanho: normalizeOptionalString(payload.tamanho),
+      material: normalizeOptionalString(payload.material),
+      acessorio: normalizeOptionalString(payload.acessorio),
+    };
+
+    const imageUrl = payload.imagem_url ?? payload.imagemUrl;
+    if (imageUrl) {
+      body.imagem_url = imageUrl;
+    }
+
     const res = await request<RawMaterial>('/materials', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
-    setFeedback('Matéria-prima salva com sucesso.');
-    setMaterials((prev) => [res.data, ...prev]);
+    setFeedback('Matéria-prima inserida com sucesso.');
+    setMaterials((prev) => [mapMaterialResponse(res.data), ...prev]);
   };
 
   const handleCreateSupplier = async (payload: Supplier) => {
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
-      body: JSON.stringify({ ...payload, razaoSocial: payload.razao_social }),
+      body: JSON.stringify({
+        cnpj: digitsOnly(payload.cnpj),
+        razaoSocial: payload.razao_social.trim(),
+        contato: payload.contato.trim(),
+        email: normalizeOptionalString(payload.email),
+        telefone: payload.telefone ? digitsOnly(payload.telefone) : null,
+        ddi: normalizeOptionalString(payload.ddi) || '55',
+        enderecoId: normalizeIdValue(payload.endereco_id),
+      }),
     });
     setFeedback('Fornecedor salvo com sucesso.');
-    setSuppliers((prev) => [res.data, ...prev]);
+    setSuppliers((prev) => [mapSupplierResponse(res.data), ...prev]);
   };
 
   const handleCreateCustomer = async (payload: Customer) => {
     const res = await request<Customer>('/customers', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        nome: payload.nome.trim(),
+        email: normalizeOptionalString(payload.email),
+        dataNascimento: normalizeDateValue(payload.data_nascimento),
+        cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
+        cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
+        enderecoId: normalizeIdValue(payload.endereco_id),
+      }),
     });
     setFeedback('Cliente salvo com sucesso.');
-    setCustomers((prev) => [res.data, ...prev]);
+    setCustomers((prev) => [mapCustomerResponse(res.data), ...prev]);
   };
 
   const handleCreateAddress = async (payload: Address) => {
@@ -1848,55 +2052,91 @@ function App() {
   const handleCreatePhone = async (payload: Phone) => {
     const res = await request<Phone>('/phones', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id),
+        ddi: normalizeOptionalString(payload.ddi) || '55',
+        ddd: digitsOnly(payload.ddd || ''),
+        numero: digitsOnly(payload.numero || ''),
+      }),
     });
     setFeedback('Telefone salvo com sucesso.');
-    setPhones((prev) => [res.data, ...prev]);
+    setPhones((prev) => [mapPhoneResponse(res.data), ...prev]);
   };
 
   const handleCreateManufacturing = async (payload: Manufacturing) => {
     const res = await request<Manufacturing>('/manufaturas', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        produtoId: normalizeIdValue(payload.produto_id ?? payload.produtoId),
+        materialId: normalizeIdValue(payload.material_id ?? payload.materialId),
+        quantidadeMaterial: normalizeNumberValue(payload.quantidade_material, true),
+      }),
     });
     setFeedback('Manufatura registrada.');
-    setManufacturing((prev) => [res.data, ...prev]);
+    setManufacturing((prev) => [mapManufacturingResponse(res.data), ...prev]);
   };
 
   const handleCreateDelivery = async (payload: MaterialDelivery) => {
     const res = await request<MaterialDelivery>('/entregas-material', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        materialId: normalizeIdValue(payload.material_id ?? payload.materialId),
+        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+        quantidade: normalizeNumberValue(payload.quantidade, true),
+        dataEntrada: normalizeDateValue(payload.data_entrada ?? payload.dataEntrada),
+        custo: normalizeNumberValue(payload.custo, true),
+      }),
     });
     setFeedback('Entrega registrada.');
-    setDeliveries((prev) => [res.data, ...prev]);
+    setDeliveries((prev) => [mapDeliveryResponse(res.data), ...prev]);
   };
 
   const handleCreateOrder = async (payload: Order) => {
     const res = await request<Order>('/pedidos', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id ?? payload.clienteId),
+        endereco: normalizeOptionalString(payload.endereco),
+        preco: normalizeNumberValue(payload.preco, true),
+        dataPedido: normalizeDateValue(payload.data_pedido ?? payload.dataPedido),
+        cpfPresentado: payload.cpf_presentado ? digitsOnly(payload.cpf_presentado) : undefined,
+        nomePresentado: normalizeOptionalString(payload.nome_presentado),
+        emailPresentado: normalizeOptionalString(payload.email_presentado),
+        enderecoPresentado: normalizeOptionalString(payload.endereco_presentado),
+      }),
     });
     setFeedback('Pedido registrado.');
-    setOrders((prev) => [res.data, ...prev]);
+    setOrders((prev) => [mapOrderResponse(res.data), ...prev]);
   };
 
   const handleCreateShipment = async (payload: Shipment) => {
     const res = await request<Shipment>('/envios', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        pedidoId: normalizeIdValue(payload.pedido_id ?? payload.pedidoId),
+        produtoId: normalizeIdValue(payload.produto_id ?? payload.produtoId),
+        quantidade: normalizeNumberValue(payload.quantidade, true),
+        dataEnvio: normalizeDateValue(payload.data_envio ?? payload.dataEnvio),
+        preco: normalizeNumberValue(payload.preco, true),
+      }),
     });
     setFeedback('Envio registrado.');
-    setShipments((prev) => [res.data, ...prev]);
+    setShipments((prev) => [mapShipmentResponse(res.data), ...prev]);
   };
 
   const handleCreateFeedback = async (payload: FeedbackRow) => {
     const res = await request<FeedbackRow>('/feedback', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        clienteId: normalizeIdValue(payload.cliente_id ?? payload.clienteId),
+        data: normalizeDateValue(payload.data),
+        nota: normalizeNumberValue(payload.nota, true),
+        contato: normalizeOptionalString(payload.contato),
+        observacao: normalizeOptionalString(payload.observacao),
+      }),
     });
     setFeedback('Feedback registrado.');
-    setFeedbackRows((prev) => [res.data, ...prev]);
+    setFeedbackRows((prev) => [mapFeedbackResponse(res.data), ...prev]);
   };
 
   const content = useMemo(() => {
@@ -2000,7 +2240,7 @@ function App() {
               title="Telefones"
               items={phones as any}
               emptyMessage="Nenhum telefone encontrado."
-              descriptor={(phone: Phone) => `${maskPhone(`${phone.ddd || ''}${phone.numero || ''}`)}`}
+              descriptor={(phone: Phone) => `${maskPhone(`${phone.ddi || '55'}${phone.ddd || ''}${phone.numero || ''}`, phone.ddi || '55')}`}
             />
           </div>
         );
@@ -2020,6 +2260,7 @@ function App() {
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
         onSuccess={(tok) => {
+          markActivity();
           saveToken(tok);
           setLoginOpen(false);
         }}
