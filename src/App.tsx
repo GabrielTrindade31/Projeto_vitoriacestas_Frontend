@@ -321,7 +321,9 @@ function useApi(token: string | null) {
         throw new Error(sanitized || 'Erro ao processar requisição');
       }
 
-      return data as ApiResponse<T>;
+      const normalizedData = data && typeof data === 'object' && 'data' in data ? (data as any).data : data;
+
+      return { data: normalizedData as T, message: (data as any)?.message } as ApiResponse<T>;
     },
     [token]
   );
@@ -632,7 +634,19 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--3">
+      <div className="grid grid--4-fixed">
+        <label className="form__group">
+          <span>DDI</span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={form.ddi || ''}
+            maxLength={3}
+            placeholder="55"
+            onChange={(e) => setForm({ ...form, ddi: digitsOnly(e.target.value).slice(0, 3) })}
+            required
+          />
+        </label>
         <label className="form__group">
           <span>DDI</span>
           <input
@@ -1745,13 +1759,15 @@ function Dashboard({ products, materials, suppliers, customers }: { products: Pr
 }
 
 function SimpleList<T extends { id?: number; nome?: string }>({ title, items, emptyMessage, descriptor }: { title: string; items: T[]; emptyMessage: string; descriptor?: (item: T) => string }) {
+  const safeItems = (items || []).filter(Boolean) as T[];
+
   return (
     <section className="panel__section">
       <SectionHeader title={title} />
-      {items.length ? (
+      {safeItems.length ? (
         <ul className="list list--bordered">
-          {items.map((item) => (
-            <li key={`${item.id}-${item.nome}`} className="list__item">
+          {safeItems.map((item, index) => (
+            <li key={`${item.id ?? item.nome ?? index}`} className="list__item">
               <div>
                 <strong>{item.nome || 'Registro'}</strong>
                 <span className="muted">{descriptor ? descriptor(item) : 'Carregado do backend'}</span>
@@ -1792,10 +1808,12 @@ function App() {
   }, []);
 
   const guardedFetch = useCallback(
-    async <T,>(path: string): Promise<T> => {
+    async <T,>(path: string, key?: string): Promise<T> => {
       if (!authenticated) throw new Error('Faça login para carregar dados.');
-      const res = await request<T>(path);
-      return res.data;
+      const res = await request<any>(path);
+      const base = res.data ?? res;
+      const payload = key ? base?.[key] ?? (res as any)?.[key] : base;
+      return (payload ?? []) as T;
     },
     [authenticated, request]
   );
@@ -1817,7 +1835,7 @@ function App() {
 
   const loadProducts = useCallback(async () => {
     try {
-      const data = await guardedFetch<Product[]>('/products');
+      const data = await guardedFetch<Product[]>('/items', 'items');
       setProducts((data || []).map(mapProductResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1826,7 +1844,7 @@ function App() {
 
   const loadMaterials = useCallback(async () => {
     try {
-      const data = await guardedFetch<RawMaterial[]>('/materials');
+      const data = await guardedFetch<RawMaterial[]>('/materials', 'materials');
       setMaterials((data || []).map(mapMaterialResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1835,7 +1853,7 @@ function App() {
 
   const loadSuppliers = useCallback(async () => {
     try {
-      const data = await guardedFetch<Supplier[]>('/suppliers');
+      const data = await guardedFetch<Supplier[]>('/suppliers', 'suppliers');
       setSuppliers((data || []).map(mapSupplierResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1844,7 +1862,7 @@ function App() {
 
   const loadCustomers = useCallback(async () => {
     try {
-      const data = await guardedFetch<Customer[]>('/customers');
+      const data = await guardedFetch<Customer[]>('/customers', 'customers');
       setCustomers((data || []).map(mapCustomerResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1853,7 +1871,7 @@ function App() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const data = await guardedFetch<Address[]>('/addresses');
+      const data = await guardedFetch<Address[]>('/addresses', 'addresses');
       setAddresses(data || []);
     } catch (err: any) {
       setFeedback(err.message);
@@ -1862,7 +1880,7 @@ function App() {
 
   const loadPhones = useCallback(async () => {
     try {
-      const data = await guardedFetch<Phone[]>('/phones');
+      const data = await guardedFetch<Phone[]>('/phones', 'phones');
       setPhones((data || []).map(mapPhoneResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1871,7 +1889,7 @@ function App() {
 
   const loadManufacturing = useCallback(async () => {
     try {
-      const data = await guardedFetch<Manufacturing[]>('/manufaturas');
+      const data = await guardedFetch<Manufacturing[]>('/manufacturing', 'manufacturing');
       setManufacturing((data || []).map(mapManufacturingResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1880,7 +1898,7 @@ function App() {
 
   const loadDeliveries = useCallback(async () => {
     try {
-      const data = await guardedFetch<MaterialDelivery[]>('/entregas-material');
+      const data = await guardedFetch<MaterialDelivery[]>('/deliveries', 'deliveries');
       setDeliveries((data || []).map(mapDeliveryResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1889,7 +1907,7 @@ function App() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const data = await guardedFetch<Order[]>('/pedidos');
+      const data = await guardedFetch<Order[]>('/orders', 'orders');
       setOrders((data || []).map(mapOrderResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1898,7 +1916,7 @@ function App() {
 
   const loadShipments = useCallback(async () => {
     try {
-      const data = await guardedFetch<Shipment[]>('/envios');
+      const data = await guardedFetch<Shipment[]>('/shipments', 'shipments');
       setShipments((data || []).map(mapShipmentResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1907,7 +1925,7 @@ function App() {
 
   const loadFeedback = useCallback(async () => {
     try {
-      const data = await guardedFetch<FeedbackRow[]>('/feedback');
+      const data = await guardedFetch<FeedbackRow[]>('/feedback', 'feedbacks');
       setFeedbackRows((data || []).map(mapFeedbackResponse));
     } catch (err: any) {
       setFeedback(err.message);
@@ -1931,27 +1949,16 @@ function App() {
     }
 
     loadAddresses();
-    if (page === 'dashboard' || page === 'items') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-    }
-    if (page === 'operations') {
-      loadProducts();
-      loadMaterials();
-      loadSuppliers();
-      loadCustomers();
-      loadManufacturing();
-      loadDeliveries();
-      loadOrders();
-      loadShipments();
-      loadFeedback();
-    }
-    if (page === 'suppliers') loadSuppliers();
-    if (page === 'customers' || page === 'phones') loadCustomers();
-    if (page === 'phones') loadPhones();
-    if (page === 'addresses') loadAddresses();
+    loadProducts();
+    loadMaterials();
+    loadSuppliers();
+    loadCustomers();
+    loadPhones();
+    loadManufacturing();
+    loadDeliveries();
+    loadOrders();
+    loadShipments();
+    loadFeedback();
   }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
 
   useEffect(() => {
@@ -1976,17 +1983,16 @@ function App() {
   }, [lastActivity, markActivity, saveToken, setPage, token]);
 
   const handleCreateProduct = async (payload: Product) => {
-    const res = await request<Product>('/products', {
+    const res = await request<Product>('/items', {
       method: 'POST',
       body: JSON.stringify({
         codigo: payload.codigo.trim(),
         nome: payload.nome.trim(),
         descricao: normalizeOptionalString(payload.descricao),
-        categoria: normalizeOptionalString(payload.categoria) || null,
+        categoria: normalizeOptionalString(payload.categoria) || 'produto',
         quantidade: normalizeNumberValue(payload.quantidade),
         preco: normalizeNumberValue(payload.preco),
         fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-        imagemUrl: payload.imagem_url ?? payload.imagemUrl ?? null,
       }),
     });
     setFeedback('Produto inserido com sucesso.');
@@ -1994,25 +2000,29 @@ function App() {
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const body: any = {
+      nome: payload.nome.trim(),
+      tipo: normalizeOptionalString(payload.tipo),
+      custo: normalizeNumberValue(payload.custo, true),
+      dataValidade: normalizeDateValue(payload.datavalidade ?? payload.dataValidade),
+      descricao: normalizeOptionalString(payload.descricao),
+      tamanho: normalizeOptionalString(payload.tamanho),
+      material: normalizeOptionalString(payload.material),
+      acessorio: normalizeOptionalString(payload.acessorio),
+    };
+
     const res = await request<RawMaterial>('/materials', {
       method: 'POST',
-      body: JSON.stringify({
-        nome: payload.nome.trim(),
-        tipo: normalizeOptionalString(payload.tipo),
-        custo: normalizeNumberValue(payload.custo, true),
-        dataValidade: normalizeDateValue(payload.datavalidade ?? payload.dataValidade),
-        descricao: normalizeOptionalString(payload.descricao),
-        tamanho: normalizeOptionalString(payload.tamanho),
-        material: normalizeOptionalString(payload.material),
-        acessorio: normalizeOptionalString(payload.acessorio),
-        imagemUrl: payload.imagem_url ?? payload.imagemUrl ?? null,
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Matéria-prima inserida com sucesso.');
     setMaterials((prev) => [mapMaterialResponse(res.data), ...prev]);
   };
 
   const handleCreateSupplier = async (payload: Supplier) => {
+    const phoneDigits = digitsOnly(payload.telefone || '');
+    const ddiValue = normalizeOptionalString(payload.ddi) || '';
+
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
       body: JSON.stringify({
@@ -2020,8 +2030,7 @@ function App() {
         razaoSocial: payload.razao_social.trim(),
         contato: payload.contato.trim(),
         email: normalizeOptionalString(payload.email),
-        telefone: payload.telefone ? digitsOnly(payload.telefone) : null,
-        ddi: normalizeOptionalString(payload.ddi) || '55',
+        telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
         enderecoId: normalizeIdValue(payload.endereco_id),
       }),
     });
@@ -2046,12 +2055,20 @@ function App() {
   };
 
   const handleCreateAddress = async (payload: Address) => {
+    const body = {
+      rua: payload.rua.trim(),
+      numero: digitsOnly(payload.numero),
+      cep: digitsOnly(payload.cep),
+    };
+
     const res = await request<Address>('/addresses', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+    const created = res.data || { ...body, id: Date.now() };
     setFeedback('Endereço salvo com sucesso.');
-    setAddresses((prev) => [res.data, ...prev]);
+    setAddresses((prev) => [created, ...prev]);
+    loadAddresses();
   };
 
   const handleCreatePhone = async (payload: Phone) => {
@@ -2059,7 +2076,6 @@ function App() {
       method: 'POST',
       body: JSON.stringify({
         clienteId: normalizeIdValue(payload.cliente_id),
-        ddi: normalizeOptionalString(payload.ddi) || '55',
         ddd: digitsOnly(payload.ddd || ''),
         numero: digitsOnly(payload.numero || ''),
       }),
@@ -2069,7 +2085,7 @@ function App() {
   };
 
   const handleCreateManufacturing = async (payload: Manufacturing) => {
-    const res = await request<Manufacturing>('/manufaturas', {
+    const res = await request<Manufacturing>('/manufacturing', {
       method: 'POST',
       body: JSON.stringify({
         produtoId: normalizeIdValue(payload.produto_id ?? payload.produtoId),
@@ -2082,7 +2098,7 @@ function App() {
   };
 
   const handleCreateDelivery = async (payload: MaterialDelivery) => {
-    const res = await request<MaterialDelivery>('/entregas-material', {
+    const res = await request<MaterialDelivery>('/deliveries', {
       method: 'POST',
       body: JSON.stringify({
         materialId: normalizeIdValue(payload.material_id ?? payload.materialId),
@@ -2097,7 +2113,7 @@ function App() {
   };
 
   const handleCreateOrder = async (payload: Order) => {
-    const res = await request<Order>('/pedidos', {
+    const res = await request<Order>('/orders', {
       method: 'POST',
       body: JSON.stringify({
         clienteId: normalizeIdValue(payload.cliente_id ?? payload.clienteId),
@@ -2115,7 +2131,7 @@ function App() {
   };
 
   const handleCreateShipment = async (payload: Shipment) => {
-    const res = await request<Shipment>('/envios', {
+    const res = await request<Shipment>('/shipments', {
       method: 'POST',
       body: JSON.stringify({
         pedidoId: normalizeIdValue(payload.pedido_id ?? payload.pedidoId),

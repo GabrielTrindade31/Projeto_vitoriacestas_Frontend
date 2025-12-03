@@ -143,6 +143,11 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.grid--4-fixed {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+}
+
 .card {
   padding: 16px;
   border-radius: 14px;
