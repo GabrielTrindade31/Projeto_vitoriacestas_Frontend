@@ -648,6 +648,18 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
           />
         </label>
         <label className="form__group">
+          <span>DDI</span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={form.ddi || ''}
+            maxLength={3}
+            placeholder="55"
+            onChange={(e) => setForm({ ...form, ddi: digitsOnly(e.target.value).slice(0, 3) })}
+            required
+          />
+        </label>
+        <label className="form__group">
           <span>DDD</span>
           <input
             type="tel"
