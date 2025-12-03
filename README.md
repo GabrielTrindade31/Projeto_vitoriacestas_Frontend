@@ -1,25 +1,42 @@
-# Frontend - Vitória Cestas (Estoque)
+# Frontend - Vitória Cestas (React + TypeScript)
 
-Interface estática para consumir o backend publicado em
-`https://projeto-vitoriacestas-backend.vercel.app`. A página principal apresenta o fluxo
-sugerido, formulário de login e um painel com itens/fornecedores recentes e atalhos de
-cadastro com visual em branco + verde/verde-água.
+SPA em React + TypeScript empacotada com **Vite**. O painel mantém navegação lateral,
+login via modal e páginas de listagem/criação para produtos, matérias-primas,
+fornecedores, clientes, endereços e telefones seguindo o esquema do banco.
 
-## Como usar
-1. Instale dependências (opcional; a página funciona abrindo o `index.html`, mas você pode
-   servir com qualquer servidor estático). Para deploy no **Vercel**, basta importar este
-   repositório: o `vercel.json` já cria um proxy de `/api/*` para o backend publicado.
-2. Acesse `index.html` pelo navegador ou via um servidor local.
-3. Informe **email** e **senha** utilizados no backend em "Acesso" e envie.
-4. Após o login, o painel principal mostra os últimos registros e libera os botões para
-   cadastrar item ou fornecedor.
+## Scripts
+- `npm install`: instala dependências.
+- `npm run dev`: sobe o Vite em modo desenvolvimento (porta padrão 5173).
+- `npm run build`: gera os artefatos estáticos em `dist/` (usados na Vercel).
+- `npm run preview`: serve o build localmente.
 
-## Notas sobre as chamadas
-- API base já configurada para `https://projeto-vitoriacestas-backend.vercel.app/api`.
-  - Em produção na Vercel, chamadas usam o caminho relativo `/api` (proxy configurado em
-    `vercel.json`), evitando problemas de CORS.
-  - Para apontar a outro backend (por exemplo, ambiente de staging), defina
-    `window.APP_API_BASE` antes de carregar `main.js`.
-- O JWT retornado em `/auth/login` é salvo em `localStorage` (chave `vitoriacestas_token`).
-- Cada chamada protegida envia automaticamente `Authorization: Bearer <token>`.
-- Em caso de resposta HTML inesperada, o frontend avisa com erro de parse.
+## API e autenticação
+- Base padrão: `https://projeto-vitoriacestas-backend.vercel.app/api`.
+  - Em Vercel, o app usa `/api` (proxy configurado em `vercel.json`).
+  - Para apontar para outra origem, defina a env `VITE_API_BASE` no build ou a global
+    `window.APP_API_BASE` antes de carregar o bundle.
+- O JWT retornado em `/auth/login` fica em `localStorage` (`vitoriacestas_token`).
+- Chamadas autenticadas adicionam `Authorization: Bearer <token>` automaticamente.
+- Upload de imagens usa `/upload` com `multipart/form-data` (FormData). Caso a rota não
+  exista no backend, o front mantém apenas a pré-visualização local do blob e exibe um
+  lembrete para habilitar o endpoint.
+
+### Endpoints esperados pelo frontend
+- Autenticação: `POST /auth/login`.
+- Dados base: `GET /addresses`, `POST /addresses`; `GET /customers`, `POST /customers`;
+  `GET /suppliers`, `POST /suppliers`; `GET /phones`, `POST /phones`.
+- Itens: `GET /products`, `POST /products`; `GET /materials`, `POST /materials`;
+  upload opcional em `POST /upload` (imagem Blob).
+- Operações: `GET /manufaturas`, `POST /manufaturas`; `GET /entregas-material`,
+  `POST /entregas-material`; `GET /pedidos`, `POST /pedidos`; `GET /envios`,
+  `POST /envios`; `GET /feedback`, `POST /feedback`.
+
+## Ordem e formato dos cadastros
+- Endereços (rua, número, CEP) são obrigatórios para clientes e opcionais para fornecedores.
+- Clientes: nome, data de nascimento e um identificador (CPF ou CNPJ) + endereço.
+- Telefones precisam de cliente vinculado, DDD (3 dígitos) e número (9 dígitos) e são
+  exibidos como `+55 (DDD) número-numero`.
+- Fornecedores exigem CNPJ, razão social e contato; telefone e endereço são opcionais.
+- Produtos: código único, categoria, quantidade, preço numérico (R$) e fornecedor opcional.
+- Matérias-primas: nome obrigatório mais campos de tipo, custo, validade, tamanho,
+  material e acessório conforme a tabela `materia_prima`.
