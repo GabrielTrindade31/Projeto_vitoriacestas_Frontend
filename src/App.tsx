@@ -234,6 +234,51 @@ const DDI_OPTIONS = [
   { code: '27', label: 'África do Sul', flag: '🇿🇦' },
 ];
 
+const PRODUCT_IMAGE_CACHE_KEY = 'vc_product_images';
+const MATERIAL_IMAGE_CACHE_KEY = 'vc_material_images';
+
+const loadImageCache = (key: string): Record<string, string> => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch (err) {
+    console.warn('Falha ao carregar cache de imagens', err);
+    return {};
+  }
+};
+
+const saveImageCache = (key: string, cache: Record<string, string>) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(cache));
+  } catch (err) {
+    console.warn('Falha ao salvar cache de imagens', err);
+  }
+};
+
+const cacheImage = (key: string, identifier?: string | number | null, url?: string | null) => {
+  const safeUrl = normalizeOptionalString(url || undefined);
+  if (!identifier || !safeUrl) return;
+  const cache = loadImageCache(key);
+  cache[String(identifier)] = safeUrl;
+  saveImageCache(key, cache);
+};
+
+const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }>(
+  items: T[],
+  key: string,
+  getIdentifier: (item: T) => string | number | undefined | null
+) => {
+  const cache = loadImageCache(key);
+  return items.map((item) => {
+    const identifier = getIdentifier(item);
+    const cached = identifier ? cache[String(identifier)] : undefined;
+    if (cached && !item.imagem_url && !item.imagemUrl) {
+      return { ...item, imagem_url: cached, imagemUrl: cached } as T;
+    }
+    return item;
+  });
+};
+
 const mapProductResponse = (product: any): Product => ({
   ...product,
   fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
@@ -2118,7 +2163,8 @@ function App() {
   const loadProducts = useCallback(async () => {
     try {
       const data = await guardedFetch<Product[]>('/items', 'items');
-      setProducts((data || []).map(mapProductResponse));
+      const mapped = (data || []).map(mapProductResponse);
+      setProducts(mergeCachedImages(mapped, PRODUCT_IMAGE_CACHE_KEY, (item) => item.codigo || item.id));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -2127,7 +2173,8 @@ function App() {
   const loadMaterials = useCallback(async () => {
     try {
       const data = await guardedFetch<RawMaterial[]>('/materials', 'materials');
-      setMaterials((data || []).map(mapMaterialResponse));
+      const mapped = (data || []).map(mapMaterialResponse);
+      setMaterials(mergeCachedImages(mapped, MATERIAL_IMAGE_CACHE_KEY, (item) => item.nome || item.id));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -2287,6 +2334,7 @@ function App() {
       }),
     });
     setFeedback('Produto inserido com sucesso.');
+    cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, payload.imagem_url ?? payload.imagemUrl);
     const created = mapProductResponse({ ...res.data, imagem_url: payload.imagem_url ?? payload.imagemUrl });
     setProducts((prev) => [created, ...prev]);
     loadProducts();
@@ -2319,6 +2367,7 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Matéria-prima inserida com sucesso.');
+    cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, payload.imagem_url ?? payload.imagemUrl);
     const created = mapMaterialResponse({ ...payload, ...res.data });
     setMaterials((prev) => [created, ...prev]);
     loadMaterials();

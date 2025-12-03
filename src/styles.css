@@ -63,6 +63,7 @@ textarea {
 .sidebar__nav {
   display: grid;
   gap: 10px;
+  align-content: start;
 }
 
 .sidebar__link {
@@ -151,11 +152,11 @@ textarea {
 }
 
 .phone-grid {
-  align-items: end;
+  align-items: center;
 }
 
 .phone-grid .form__group:nth-child(3) input {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .grid--4-fixed .form__group {
