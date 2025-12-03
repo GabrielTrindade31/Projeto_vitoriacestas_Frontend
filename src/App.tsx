@@ -632,7 +632,7 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--4">
+      <div className="grid grid--4-fixed">
         <label className="form__group">
           <span>DDI</span>
           <input
@@ -1745,13 +1745,15 @@ function Dashboard({ products, materials, suppliers, customers }: { products: Pr
 }
 
 function SimpleList<T extends { id?: number; nome?: string }>({ title, items, emptyMessage, descriptor }: { title: string; items: T[]; emptyMessage: string; descriptor?: (item: T) => string }) {
+  const safeItems = (items || []).filter(Boolean) as T[];
+
   return (
     <section className="panel__section">
       <SectionHeader title={title} />
-      {items.length ? (
+      {safeItems.length ? (
         <ul className="list list--bordered">
-          {items.map((item) => (
-            <li key={`${item.id}-${item.nome}`} className="list__item">
+          {safeItems.map((item, index) => (
+            <li key={`${item.id ?? item.nome ?? index}`} className="list__item">
               <div>
                 <strong>{item.nome || 'Registro'}</strong>
                 <span className="muted">{descriptor ? descriptor(item) : 'Carregado do backend'}</span>
@@ -2041,12 +2043,20 @@ function App() {
   };
 
   const handleCreateAddress = async (payload: Address) => {
+    const body = {
+      rua: payload.rua.trim(),
+      numero: digitsOnly(payload.numero),
+      cep: digitsOnly(payload.cep),
+    };
+
     const res = await request<Address>('/addresses', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+    const created = res.data || { ...body, id: Date.now() };
     setFeedback('Endereço salvo com sucesso.');
-    setAddresses((prev) => [res.data, ...prev]);
+    setAddresses((prev) => [created, ...prev]);
+    loadAddresses();
   };
 
   const handleCreatePhone = async (payload: Phone) => {
