@@ -592,7 +592,6 @@ function AddressForm({
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<Address[]>([]);
   const [editing, setEditing] = useState<Address | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
   const [searchField, setSearchField] = useState<'all' | 'id' | 'rua' | 'numero' | 'cep'>('all');
 
   const displayedAddresses = results.length ? results : addresses;
@@ -619,8 +618,26 @@ function AddressForm({
   };
 
   const handleSearch = async () => {
-    const data = await onSearch(searchTerm, searchField === 'all' ? undefined : searchField);
-    setResults(data);
+    const query = searchTerm.trim();
+    if (!query) {
+      setResults([]);
+      return;
+    }
+    const data = await onSearch(query, searchField === 'all' ? undefined : searchField);
+    if (data.length) {
+      setResults(data);
+      return;
+    }
+    const lowered = query.toLowerCase();
+    const local = addresses.filter((addr) => {
+      const matchesField = (value?: string | number | null) => String(value || '').toLowerCase().includes(lowered);
+      if (searchField === 'rua') return matchesField(addr.rua);
+      if (searchField === 'numero') return matchesField(addr.numero);
+      if (searchField === 'cep') return matchesField(addr.cep);
+      if (searchField === 'id') return matchesField(addr.id);
+      return matchesField(addr.rua) || matchesField(addr.numero) || matchesField(addr.cep) || matchesField(addr.id);
+    });
+    setResults(local);
   };
 
   const handleSelect = (address: Address) => {
@@ -631,21 +648,13 @@ function AddressForm({
   const resetSearch = () => {
     setResults([]);
     setSearchTerm('');
-    setShowSearch(false);
   };
 
   return (
     <form className="form" onSubmit={(e) => handleSubmit(e, editing ? 'update' : 'create')}>
       <div className="table__actions" style={{ marginBottom: '12px', justifyContent: 'space-between', gap: '12px' }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            className="btn btn--ghost"
-            type="button"
-            style={{ padding: '8px 12px', minWidth: 0 }}
-            onClick={() => setShowSearch((prev) => !prev)}
-          >
-            Buscar
-          </button>
+          <span className="badge badge--soft">Busca de endereços</span>
           {editing && <span className="badge">Editando #{editing.id}</span>}
         </div>
         {results.length > 0 && (
@@ -655,35 +664,33 @@ function AddressForm({
         )}
       </div>
 
-      {showSearch && (
-        <div className="search-panel search-panel--inline">
-          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-            <label className="form__group">
-              <span>Campo</span>
-              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-                <option value="all">Todos</option>
-                <option value="id">ID</option>
-                <option value="rua">Rua</option>
-                <option value="numero">Número</option>
-                <option value="cep">CEP</option>
-              </select>
-            </label>
-            <label className="form__group">
-              <span>Pesquisar</span>
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Digite ID, rua, número ou CEP"
-              />
-            </label>
-            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-              <button className="btn" type="button" onClick={handleSearch}>
-                Buscar
-              </button>
-            </div>
+      <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+        <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+          <label className="form__group">
+            <span>Campo</span>
+            <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+              <option value="all">Todos</option>
+              <option value="id">ID</option>
+              <option value="rua">Rua</option>
+              <option value="numero">Número</option>
+              <option value="cep">CEP</option>
+            </select>
+          </label>
+          <label className="form__group">
+            <span>Pesquisar</span>
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Digite ID, rua, número ou CEP"
+            />
+          </label>
+          <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+            <button className="btn" type="button" onClick={handleSearch}>
+              Buscar
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       <div className="grid grid--3">
         <label className="form__group">
@@ -1145,11 +1152,42 @@ function BulkImport({ label, onImport, exampleHint }: { label: string; onImport:
   );
 }
 
-function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[]; onSubmit: (product: Product) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
+function ProductForm({
+  suppliers,
+  onSubmit,
+  onUpload,
+  editing,
+  onClearEditing,
+}: {
+  suppliers: Supplier[];
+  onSubmit: (product: Product) => Promise<void>;
+  onUpload: (file: File) => Promise<string>;
+  editing?: Product | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Product>({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        codigo: editing.codigo,
+        nome: editing.nome,
+        descricao: editing.descricao || '',
+        categoria: editing.categoria || 'produto',
+        quantidade: editing.quantidade || 0,
+        preco: editing.preco || 0,
+        fornecedor_id: normalizeIdValue(editing.fornecedor_id ?? editing.fornecedorId),
+      });
+      setImageUrl(editing.imagem_url || editing.imagemUrl);
+    } else {
+      setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
+      setImageUrl(undefined);
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1157,8 +1195,11 @@ function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[];
     setError(null);
     try {
       await onSubmit({ ...form, imagem_url: imageUrl });
-      setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
-      setImageUrl(undefined);
+      if (!editing) {
+        setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
+        setImageUrl(undefined);
+      }
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar produto');
     } finally {
@@ -1238,20 +1279,55 @@ function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[];
         onClear={() => setImageUrl(undefined)}
       />
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar produto'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar produto' : 'Cadastrar produto'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMaterial) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
+function RawMaterialForm({
+  onSubmit,
+  onUpload,
+  editing,
+  onClearEditing,
+}: {
+  onSubmit: (material: RawMaterial) => Promise<void>;
+  onUpload: (file: File) => Promise<string>;
+  editing?: RawMaterial | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<RawMaterial>({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        nome: editing.nome,
+        tipo: editing.tipo || '',
+        custo: editing.custo || 0,
+        datavalidade: editing.datavalidade || editing.dataValidade || '',
+        descricao: editing.descricao || '',
+        tamanho: editing.tamanho || '',
+        material: editing.material || '',
+        acessorio: editing.acessorio || '',
+      });
+      setImageUrl(editing.imagem_url || editing.imagemUrl);
+    } else {
+      setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
+      setImageUrl(undefined);
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1270,8 +1346,11 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
         acessorio: normalizeOptionalString(form.acessorio) || undefined,
         imagem_url: imageUrl || undefined,
       });
-      setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
-      setImageUrl(undefined);
+      if (!editing) {
+        setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
+        setImageUrl(undefined);
+      }
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar matéria-prima');
     } finally {
@@ -1341,16 +1420,21 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
         onClear={() => setImageUrl(undefined)}
       />
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar matéria-prima'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar matéria-prima' : 'Cadastrar matéria-prima'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function ProductsTable({ products }: { products: Product[] }) {
+function ProductsTable({ products, selectedId, onSelect }: { products: Product[]; selectedId?: number | null; onSelect?: (product: Product) => void }) {
   if (!products.length) return <EmptyState message="Nenhum produto cadastrado." />;
   const columns: ColumnDef<Product>[] = [
     { label: 'Nome', value: (row) => row.nome },
@@ -1375,7 +1459,13 @@ function ProductsTable({ products }: { products: Product[] }) {
           <span>Preço</span>
         </div>
         {products.map((product) => (
-          <div key={product.id || product.codigo} className="table__row">
+          <button
+            key={product.id || product.codigo}
+            type="button"
+            className="table__row"
+            style={selectedId && selectedId === product.id ? { border: '2px solid var(--primary)' } : undefined}
+            onClick={() => onSelect?.(product)}
+          >
             <div className="table__cell">
               <div className="thumbnail">
                 {product.imagem_url || product.imagemUrl ? (
@@ -1391,14 +1481,14 @@ function ProductsTable({ products }: { products: Product[] }) {
             <span className="table__cell">{product.categoria || 'Produto'}</span>
             <span className="table__cell">{product.quantidade}</span>
             <span className="table__cell">{money(product.preco)}</span>
-          </div>
+          </button>
         ))}
       </div>
     </>
   );
 }
 
-function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
+function MaterialsTable({ materials, selectedId, onSelect }: { materials: RawMaterial[]; selectedId?: number | null; onSelect?: (material: RawMaterial) => void }) {
   if (!materials.length) return <EmptyState message="Nenhuma matéria-prima cadastrada." />;
   const columns: ColumnDef<RawMaterial>[] = [
     { label: 'Nome', value: (row) => row.nome },
@@ -1425,7 +1515,13 @@ function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
           <span>Validade</span>
         </div>
         {materials.map((material) => (
-          <div key={material.id || material.nome} className="table__row">
+          <button
+            key={material.id || material.nome}
+            type="button"
+            className="table__row"
+            style={selectedId && selectedId === material.id ? { border: '2px solid var(--primary)' } : undefined}
+            onClick={() => onSelect?.(material)}
+          >
             <div className="table__cell">
               <div className="thumbnail">
                 {material.imagem_url || material.imagemUrl ? (
@@ -1440,7 +1536,7 @@ function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
             <span className="table__cell">{material.tipo || 'N/I'}</span>
             <span className="table__cell">{money(material.custo || 0)}</span>
             <span className="table__cell">{material.datavalidade || '--'}</span>
-          </div>
+          </button>
         ))}
       </div>
     </>
@@ -2100,6 +2196,76 @@ function OperationsPage({
 
 function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMaterial, onUpload }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; onCreateProduct: (product: Product) => Promise<void>; onCreateMaterial: (material: RawMaterial) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
   const [tab, setTab] = useState<'produtos' | 'materiais'>('produtos');
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productSearchField, setProductSearchField] = useState<'all' | 'nome' | 'codigo' | 'categoria'>('all');
+  const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+  const [materialSearchField, setMaterialSearchField] = useState<'all' | 'nome' | 'tipo' | 'material'>('all');
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearchTerm.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((prod) => {
+      const fields: Record<string, string> = {
+        nome: prod.nome?.toLowerCase() || '',
+        codigo: prod.codigo?.toLowerCase() || '',
+        categoria: prod.categoria?.toLowerCase() || '',
+      };
+      if (productSearchField === 'all') {
+        return Object.values(fields).some((value) => value.includes(query));
+      }
+      return fields[productSearchField]?.includes(query);
+    });
+  }, [productSearchField, productSearchTerm, products]);
+
+  const filteredMaterials = useMemo(() => {
+    const query = materialSearchTerm.trim().toLowerCase();
+    if (!query) return materials;
+    return materials.filter((mat) => {
+      const fields: Record<string, string> = {
+        nome: mat.nome?.toLowerCase() || '',
+        tipo: mat.tipo?.toLowerCase() || '',
+        material: mat.material?.toLowerCase() || '',
+      };
+      if (materialSearchField === 'all') {
+        return Object.values(fields).some((value) => value.includes(query));
+      }
+      return fields[materialSearchField]?.includes(query);
+    });
+  }, [materialSearchField, materialSearchTerm, materials]);
+
+  const renderSearchControls = (
+    value: string,
+    onChange: (val: string) => void,
+    field: string,
+    onFieldChange: (val: any) => void,
+    options: { value: string; label: string }[]
+  ) => (
+    <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+        <label className="form__group">
+          <span>Campo</span>
+          <select value={field} onChange={(e) => onFieldChange(e.target.value)}>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Pesquisar</span>
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Digite para filtrar" />
+        </label>
+        <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+          <button className="btn btn--ghost" type="button" onClick={() => onChange('')}>
+            Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="panel">
@@ -2120,14 +2286,41 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
       {tab === 'produtos' ? (
         <section className="panel__section">
           <SectionHeader title="Produtos" subtitle="Código, categoria, estoque, preço e fornecedor" />
-          <ProductForm suppliers={suppliers} onSubmit={onCreateProduct} onUpload={onUpload} />
-          <ProductsTable products={products} />
+          <ProductForm
+            suppliers={suppliers}
+            onSubmit={onCreateProduct}
+            onUpload={onUpload}
+            editing={editingProduct}
+            onClearEditing={() => setEditingProduct(null)}
+          />
+          {renderSearchControls(productSearchTerm, setProductSearchTerm, productSearchField, setProductSearchField, [
+            { value: 'all', label: 'Todos' },
+            { value: 'nome', label: 'Nome' },
+            { value: 'codigo', label: 'Código' },
+            { value: 'categoria', label: 'Categoria' },
+          ])}
+          <ProductsTable products={filteredProducts} selectedId={editingProduct?.id ?? null} onSelect={(prod) => setEditingProduct(prod)} />
         </section>
       ) : (
         <section className="panel__section">
           <SectionHeader title="Matéria-prima" subtitle="Dados completos para manufatura" />
-          <RawMaterialForm onSubmit={onCreateMaterial} onUpload={onUpload} />
-          <MaterialsTable materials={materials} />
+          <RawMaterialForm
+            onSubmit={onCreateMaterial}
+            onUpload={onUpload}
+            editing={editingMaterial}
+            onClearEditing={() => setEditingMaterial(null)}
+          />
+          {renderSearchControls(materialSearchTerm, setMaterialSearchTerm, materialSearchField, setMaterialSearchField, [
+            { value: 'all', label: 'Todos' },
+            { value: 'nome', label: 'Nome' },
+            { value: 'tipo', label: 'Tipo' },
+            { value: 'material', label: 'Material' },
+          ])}
+          <MaterialsTable
+            materials={filteredMaterials}
+            selectedId={editingMaterial?.id ?? null}
+            onSelect={(mat) => setEditingMaterial(mat)}
+          />
         </section>
       )}
     </div>
@@ -2437,24 +2630,41 @@ function App() {
 
   const handleCreateProduct = async (payload: Product) => {
     const duplicated = products.find(
-      (prod) => prod.codigo.trim() === payload.codigo.trim() || prod.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase()
+      (prod) =>
+        prod.id !== payload.id &&
+        (prod.codigo.trim() === payload.codigo.trim() || prod.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase())
     );
     if (duplicated) {
       setFeedback('Produto já cadastrado com este código ou nome.');
       return;
     }
+    const body = {
+      codigo: payload.codigo.trim(),
+      nome: payload.nome.trim(),
+      descricao: normalizeOptionalString(payload.descricao),
+      categoria: normalizeOptionalString(payload.categoria) || 'produto',
+      quantidade: normalizeNumberValue(payload.quantidade),
+      preco: normalizeNumberValue(payload.preco),
+      fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+    };
+
+    if (payload.id) {
+      const res = await request<Product>(`/items/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapProductResponse({ ...payload, ...res.data });
+      setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
+      setFeedback('Produto atualizado com sucesso.');
+      loadProducts();
+      setTimeout(loadProducts, 2000);
+      return;
+    }
+
     const res = await request<Product>('/items', {
       method: 'POST',
-      body: JSON.stringify({
-        codigo: payload.codigo.trim(),
-        nome: payload.nome.trim(),
-        descricao: normalizeOptionalString(payload.descricao),
-        categoria: normalizeOptionalString(payload.categoria) || 'produto',
-        quantidade: normalizeNumberValue(payload.quantidade),
-        preco: normalizeNumberValue(payload.preco),
-        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-        imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Produto inserido com sucesso.');
     cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, payload.imagem_url ?? payload.imagemUrl);
@@ -2466,7 +2676,9 @@ function App() {
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
     const duplicated = materials.find(
-      (mat) => mat.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
+      (mat) =>
+        mat.id !== payload.id &&
+        mat.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
         (normalizeOptionalString(mat.tipo)?.toLowerCase() || '') === (normalizeOptionalString(payload.tipo)?.toLowerCase() || '')
     );
     if (duplicated) {
@@ -2484,6 +2696,19 @@ function App() {
       acessorio: normalizeOptionalString(payload.acessorio),
       imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
     };
+
+    if (payload.id) {
+      const res = await request<RawMaterial>(`/materials/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapMaterialResponse({ ...payload, ...res.data });
+      setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
+      setFeedback('Matéria-prima atualizada com sucesso.');
+      loadMaterials();
+      setTimeout(loadMaterials, 2000);
+      return;
+    }
 
     const res = await request<RawMaterial>('/materials', {
       method: 'POST',
