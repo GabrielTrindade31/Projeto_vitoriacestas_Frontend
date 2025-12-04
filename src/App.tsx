@@ -577,18 +577,28 @@ function SectionHeader({ title, subtitle, extra }: { title: string; subtitle?: s
   );
 }
 
-function AddressForm({ onSubmit }: { onSubmit: (address: Address) => Promise<void> }) {
+function AddressForm({
+  onSubmit,
+  onSearch,
+}: {
+  onSubmit: (address: Address) => Promise<void>;
+  onSearch: (term: string) => Promise<Address[]>;
+}) {
   const [form, setForm] = useState<Address>({ rua: '', cep: '', numero: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [results, setResults] = useState<Address[]>([]);
+  const [editing, setEditing] = useState<Address | null>(null);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, cep: digitsOnly(form.cep) });
+      await onSubmit({ ...form, id: editing?.id, cep: digitsOnly(form.cep) });
       setForm({ rua: '', cep: '', numero: '' });
+      setEditing(null);
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar endereço');
     } finally {
@@ -596,8 +606,51 @@ function AddressForm({ onSubmit }: { onSubmit: (address: Address) => Promise<voi
     }
   };
 
+  const handleSearch = async () => {
+    const data = await onSearch(searchTerm);
+    setResults(data);
+  };
+
+  const handleSelect = (address: Address) => {
+    setEditing(address);
+    setForm({ rua: address.rua, numero: String(address.numero), cep: address.cep });
+  };
+
   return (
     <form className="form" onSubmit={handleSubmit}>
+      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+        <label className="form__group">
+          <span>Pesquisar endereço</span>
+          <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Rua, número ou CEP" />
+        </label>
+        <div className="form__group">
+          <button className="btn" type="button" onClick={handleSearch}>
+            Buscar
+          </button>
+        </div>
+        {editing && (
+          <div className="form__group">
+            <span className="muted">Editando #{editing.id}</span>
+            <button className="btn btn--ghost" type="button" onClick={() => setEditing(null)}>
+              Cancelar edição
+            </button>
+          </div>
+        )}
+      </div>
+      {results.length > 0 && (
+        <div className="table" style={{ marginBottom: '12px' }}>
+          <div className="table__row table__head">
+            <span>Endereço</span>
+            <span>CEP</span>
+          </div>
+          {results.map((address) => (
+            <button key={address.id || `${address.rua}-${address.numero}`} type="button" className="table__row" onClick={() => handleSelect(address)}>
+              <span className="table__cell">{address.rua} {address.numero}</span>
+              <span className="table__cell">{address.cep}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid grid--3">
         <label className="form__group">
           <span>Rua</span>
@@ -2435,8 +2488,19 @@ function App() {
       cep: digitsOnly(payload.cep),
     };
 
+    if (payload.id) {
+      await request<Address>(`/addresses/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      setFeedback('Endereço atualizado com sucesso.');
+      await loadAddresses();
+      return;
+    }
+
     const exists = addresses.find(
-      (addr) => addr.rua.trim().toLowerCase() === body.rua.trim().toLowerCase() &&
+      (addr) =>
+        addr.rua.trim().toLowerCase() === body.rua.trim().toLowerCase() &&
         digitsOnly(addr.numero) === body.numero &&
         digitsOnly(addr.cep) === body.cep
     );
@@ -2455,6 +2519,22 @@ function App() {
     loadAddresses();
     setTimeout(loadAddresses, 2000);
   };
+
+  const searchAddresses = useCallback(
+    async (term: string) => {
+      const query = term.trim();
+      if (!query) return [] as Address[];
+      try {
+        const res = await request<any>(`/addresses/search?query=${encodeURIComponent(query)}`);
+        const data = (res.data?.addresses || res.data || res.addresses || []) as Address[];
+        return data;
+      } catch (err) {
+        console.warn('Falha ao buscar endereços', err);
+        return [] as Address[];
+      }
+    },
+    [request]
+  );
 
   const handleCreatePhone = async (payload: Phone) => {
     const res = await request<Phone>('/phones', {
@@ -2676,7 +2756,7 @@ function App() {
           <p className="muted">Rua, número e CEP são obrigatórios.</p>
         </div>
       </header>
-      <AddressForm onSubmit={handleCreateAddress} />
+      <AddressForm onSubmit={handleCreateAddress} onSearch={searchAddresses} />
       <BulkImport
         label="Importar endereços (.csv/.json)"
         exampleHint="Campos: rua, numero, cep"
@@ -2712,7 +2792,7 @@ function App() {
       default:
         return <Dashboard products={products} materials={materials} suppliers={suppliers} customers={customers} />;
     }
-  }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage, orders, shipments, deliveries, manufacturing, feedbackRows]);
+  }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage, orders, shipments, deliveries, manufacturing, feedbackRows, searchAddresses]);
 
   return (
     <div className="layout">
