@@ -595,6 +595,8 @@ function AddressForm({
   const [showSearch, setShowSearch] = useState(false);
   const [searchField, setSearchField] = useState<'all' | 'id' | 'rua' | 'numero' | 'cep'>('all');
 
+  const displayedAddresses = results.length ? results : addresses;
+
   const handleSubmit = async (
     event?: React.FormEvent | React.MouseEvent<HTMLButtonElement>,
     mode: 'create' | 'update' = editing ? 'update' : 'create'
@@ -626,72 +628,62 @@ function AddressForm({
     setForm({ rua: address.rua, numero: String(address.numero), cep: address.cep });
   };
 
+  const resetSearch = () => {
+    setResults([]);
+    setSearchTerm('');
+    setShowSearch(false);
+  };
+
   return (
     <form className="form" onSubmit={(e) => handleSubmit(e, editing ? 'update' : 'create')}>
-      <div className="grid grid--3" style={{ alignItems: 'flex-end', marginBottom: '8px' }}>
-        <div className="form__group">
+      <div className="table__actions" style={{ marginBottom: '12px', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             className="btn btn--ghost"
             type="button"
-            style={{ width: 'fit-content', padding: '8px 12px' }}
+            style={{ padding: '8px 12px', minWidth: 0 }}
             onClick={() => setShowSearch((prev) => !prev)}
           >
             Buscar
           </button>
-          {showSearch && (
-            <div className="search-panel" style={{ marginTop: '8px' }}>
-              <label className="form__group" style={{ marginBottom: '8px' }}>
-                <span>Campo</span>
-                <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-                  <option value="all">Todos</option>
-                  <option value="id">ID</option>
-                  <option value="rua">Rua</option>
-                  <option value="numero">Número</option>
-                  <option value="cep">CEP</option>
-                </select>
-              </label>
-              <label className="form__group" style={{ marginBottom: '8px' }}>
-                <span>Pesquisar</span>
-                <input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Digite ID, rua, número ou CEP"
-                />
-              </label>
+          {editing && <span className="badge">Editando #{editing.id}</span>}
+        </div>
+        {results.length > 0 && (
+          <button className="btn btn--ghost" type="button" onClick={resetSearch}>
+            Limpar busca
+          </button>
+        )}
+      </div>
+
+      {showSearch && (
+        <div className="search-panel search-panel--inline">
+          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+            <label className="form__group">
+              <span>Campo</span>
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="id">ID</option>
+                <option value="rua">Rua</option>
+                <option value="numero">Número</option>
+                <option value="cep">CEP</option>
+              </select>
+            </label>
+            <label className="form__group">
+              <span>Pesquisar</span>
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Digite ID, rua, número ou CEP"
+              />
+            </label>
+            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
               <button className="btn" type="button" onClick={handleSearch}>
                 Buscar
               </button>
-              {results.length > 0 && (
-                <div className="table" style={{ marginTop: '12px' }}>
-                  <div className="table__row table__head">
-                    <span>Endereço</span>
-                    <span>CEP</span>
-                  </div>
-                  {results.map((address) => (
-                    <button
-                      key={address.id || `${address.rua}-${address.numero}`}
-                      type="button"
-                      className="table__row"
-                      onClick={() => handleSelect(address)}
-                    >
-                      <span className="table__cell">{address.rua} {address.numero}</span>
-                      <span className="table__cell">{address.cep}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-          )}
-        </div>
-        {editing && (
-          <div className="form__group">
-            <span className="muted">Editando #{editing.id}</span>
-            <button className="btn btn--ghost" type="button" onClick={() => setEditing(null)}>
-              Cancelar edição
-            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="grid grid--3">
         <label className="form__group">
@@ -719,7 +711,7 @@ function AddressForm({
           <span>Endereço</span>
           <span>CEP</span>
         </div>
-        {addresses.map((address) => {
+        {displayedAddresses.map((address) => {
           const isSelected = editing?.id === address.id;
           return (
             <button
@@ -734,7 +726,11 @@ function AddressForm({
             </button>
           );
         })}
-        {addresses.length === 0 && <div className="table__row"><span className="table__cell">Nenhum endereço cadastrado.</span></div>}
+        {displayedAddresses.length === 0 && (
+          <div className="table__row">
+            <span className="table__cell">Nenhum endereço encontrado.</span>
+          </div>
+        )}
       </div>
 
       {error && <p className="form__error">{error}</p>}
