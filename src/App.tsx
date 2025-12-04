@@ -577,6 +577,59 @@ function SectionHeader({ title, subtitle, extra }: { title: string; subtitle?: s
   );
 }
 
+function SearchControls({
+  value,
+  onChange,
+  field,
+  onFieldChange,
+  options,
+  onSearch,
+  placeholder = 'Digite para filtrar',
+  searchLabel = 'Buscar',
+  clearLabel = 'Limpar',
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  field: string;
+  onFieldChange: (val: any) => void;
+  options: { value: string; label: string }[];
+  onSearch?: () => void;
+  placeholder?: string;
+  searchLabel?: string;
+  clearLabel?: string;
+}) {
+  return (
+    <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+        <label className="form__group">
+          <span>Campo</span>
+          <select value={field} onChange={(e) => onFieldChange(e.target.value)}>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Pesquisar</span>
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        </label>
+        <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start', gap: '8px' }}>
+          {onSearch && (
+            <button className="btn" type="button" onClick={onSearch}>
+              {searchLabel}
+            </button>
+          )}
+          <button className="btn btn--ghost" type="button" onClick={() => onChange('')}>
+            {clearLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddressForm({
   onSubmit,
   onSearch,
@@ -595,6 +648,13 @@ function AddressForm({
   const [searchField, setSearchField] = useState<'all' | 'id' | 'rua' | 'numero' | 'cep'>('all');
 
   const displayedAddresses = results.length ? results : addresses;
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    if (!value.trim()) {
+      setResults([]);
+    }
+  };
 
   const handleSubmit = async (
     event?: React.FormEvent | React.MouseEvent<HTMLButtonElement>,
@@ -664,33 +724,22 @@ function AddressForm({
         )}
       </div>
 
-      <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
-        <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-          <label className="form__group">
-            <span>Campo</span>
-            <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-              <option value="all">Todos</option>
-              <option value="id">ID</option>
-              <option value="rua">Rua</option>
-              <option value="numero">Número</option>
-              <option value="cep">CEP</option>
-            </select>
-          </label>
-          <label className="form__group">
-            <span>Pesquisar</span>
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Digite ID, rua, número ou CEP"
-            />
-          </label>
-          <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-            <button className="btn" type="button" onClick={handleSearch}>
-              Buscar
-            </button>
-          </div>
-        </div>
-      </div>
+      <SearchControls
+        value={searchTerm}
+        onChange={handleSearchChange}
+        field={searchField}
+        onFieldChange={(val) => setSearchField(val as any)}
+        options={[
+          { value: 'all', label: 'Todos' },
+          { value: 'id', label: 'ID' },
+          { value: 'rua', label: 'Rua' },
+          { value: 'numero', label: 'Número' },
+          { value: 'cep', label: 'CEP' },
+        ]}
+        onSearch={handleSearch}
+        placeholder="Digite ID, rua, número ou CEP"
+        clearLabel="Limpar"
+      />
 
       <div className="grid grid--3">
         <label className="form__group">
@@ -725,12 +774,7 @@ function AddressForm({
               key={address.id || `${address.rua}-${address.numero}`}
               role="button"
               tabIndex={0}
-              className="table__row"
-              style={
-                isSelected
-                  ? { boxShadow: 'inset 0 0 0 2px var(--primary, #35c8b4)', cursor: 'pointer' }
-                  : { cursor: 'pointer' }
-              }
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
               onClick={() => handleSelect(address)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') handleSelect(address);
@@ -1561,31 +1605,37 @@ function ProductsTable({ products, selectedId, onSelect }: { products: Product[]
           <span>Qtd</span>
           <span>Preço</span>
         </div>
-        {products.map((product) => (
-          <button
-            key={product.id || product.codigo}
-            type="button"
-            className="table__row"
-            style={selectedId && selectedId === product.id ? { border: '2px solid var(--primary)' } : undefined}
-            onClick={() => onSelect?.(product)}
-          >
-            <div className="table__cell">
-              <div className="thumbnail">
-                {product.imagem_url || product.imagemUrl ? (
-                  <img src={product.imagem_url || product.imagemUrl} alt={`Imagem de ${product.nome}`} />
-                ) : (
-                  <span className="muted">Sem imagem</span>
-                )}
+        {products.map((product) => {
+          const isSelected = selectedId && selectedId === product.id;
+          return (
+            <div
+              key={product.id || product.codigo}
+              role="button"
+              tabIndex={0}
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => onSelect?.(product)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelect?.(product);
+              }}
+            >
+              <div className="table__cell">
+                <div className="thumbnail">
+                  {product.imagem_url || product.imagemUrl ? (
+                    <img src={product.imagem_url || product.imagemUrl} alt={`Imagem de ${product.nome}`} />
+                  ) : (
+                    <span className="muted">Sem imagem</span>
+                  )}
+                </div>
+                <strong>{product.nome}</strong>
+                <p className="muted">{product.descricao || 'Sem descrição'}</p>
               </div>
-              <strong>{product.nome}</strong>
-              <p className="muted">{product.descricao || 'Sem descrição'}</p>
+              <span className="table__cell">{product.codigo}</span>
+              <span className="table__cell">{product.categoria || 'Produto'}</span>
+              <span className="table__cell">{product.quantidade}</span>
+              <span className="table__cell">{money(product.preco)}</span>
             </div>
-            <span className="table__cell">{product.codigo}</span>
-            <span className="table__cell">{product.categoria || 'Produto'}</span>
-            <span className="table__cell">{product.quantidade}</span>
-            <span className="table__cell">{money(product.preco)}</span>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -1617,30 +1667,36 @@ function MaterialsTable({ materials, selectedId, onSelect }: { materials: RawMat
           <span>Custo</span>
           <span>Validade</span>
         </div>
-        {materials.map((material) => (
-          <button
-            key={material.id || material.nome}
-            type="button"
-            className="table__row"
-            style={selectedId && selectedId === material.id ? { border: '2px solid var(--primary)' } : undefined}
-            onClick={() => onSelect?.(material)}
-          >
-            <div className="table__cell">
-              <div className="thumbnail">
-                {material.imagem_url || material.imagemUrl ? (
-                  <img src={material.imagem_url || material.imagemUrl} alt={`Imagem de ${material.nome}`} />
-                ) : (
-                  <span className="muted">Sem imagem</span>
-                )}
+        {materials.map((material) => {
+          const isSelected = selectedId && selectedId === material.id;
+          return (
+            <div
+              key={material.id || material.nome}
+              role="button"
+              tabIndex={0}
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => onSelect?.(material)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelect?.(material);
+              }}
+            >
+              <div className="table__cell">
+                <div className="thumbnail">
+                  {material.imagem_url || material.imagemUrl ? (
+                    <img src={material.imagem_url || material.imagemUrl} alt={`Imagem de ${material.nome}`} />
+                  ) : (
+                    <span className="muted">Sem imagem</span>
+                  )}
+                </div>
+                <strong>{material.nome}</strong>
+                <p className="muted">{material.descricao || 'Sem descrição'}</p>
               </div>
-              <strong>{material.nome}</strong>
-              <p className="muted">{material.descricao || 'Sem descrição'}</p>
+              <span className="table__cell">{material.tipo || 'N/I'}</span>
+              <span className="table__cell">{money(material.custo || 0)}</span>
+              <span className="table__cell">{material.datavalidade || '--'}</span>
             </div>
-            <span className="table__cell">{material.tipo || 'N/I'}</span>
-            <span className="table__cell">{money(material.custo || 0)}</span>
-            <span className="table__cell">{material.datavalidade || '--'}</span>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -2338,38 +2394,6 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
     });
   }, [materialSearchField, materialSearchTerm, materials]);
 
-  const renderSearchControls = (
-    value: string,
-    onChange: (val: string) => void,
-    field: string,
-    onFieldChange: (val: any) => void,
-    options: { value: string; label: string }[]
-  ) => (
-    <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
-      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-        <label className="form__group">
-          <span>Campo</span>
-          <select value={field} onChange={(e) => onFieldChange(e.target.value)}>
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form__group">
-          <span>Pesquisar</span>
-          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Digite para filtrar" />
-        </label>
-        <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-          <button className="btn btn--ghost" type="button" onClick={() => onChange('')}>
-            Limpar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="panel">
       <header className="panel__header">
@@ -2396,12 +2420,18 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
             editing={editingProduct}
             onClearEditing={() => setEditingProduct(null)}
           />
-          {renderSearchControls(productSearchTerm, setProductSearchTerm, productSearchField, setProductSearchField, [
-            { value: 'all', label: 'Todos' },
-            { value: 'nome', label: 'Nome' },
-            { value: 'codigo', label: 'Código' },
-            { value: 'categoria', label: 'Categoria' },
-          ])}
+          <SearchControls
+            value={productSearchTerm}
+            onChange={setProductSearchTerm}
+            field={productSearchField}
+            onFieldChange={setProductSearchField}
+            options={[
+              { value: 'all', label: 'Todos' },
+              { value: 'nome', label: 'Nome' },
+              { value: 'codigo', label: 'Código' },
+              { value: 'categoria', label: 'Categoria' },
+            ]}
+          />
           <ProductsTable products={filteredProducts} selectedId={editingProduct?.id ?? null} onSelect={(prod) => setEditingProduct(prod)} />
         </section>
       ) : (
@@ -2413,12 +2443,18 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
             editing={editingMaterial}
             onClearEditing={() => setEditingMaterial(null)}
           />
-          {renderSearchControls(materialSearchTerm, setMaterialSearchTerm, materialSearchField, setMaterialSearchField, [
-            { value: 'all', label: 'Todos' },
-            { value: 'nome', label: 'Nome' },
-            { value: 'tipo', label: 'Tipo' },
-            { value: 'material', label: 'Material' },
-          ])}
+          <SearchControls
+            value={materialSearchTerm}
+            onChange={setMaterialSearchTerm}
+            field={materialSearchField}
+            onFieldChange={setMaterialSearchField}
+            options={[
+              { value: 'all', label: 'Todos' },
+              { value: 'nome', label: 'Nome' },
+              { value: 'tipo', label: 'Tipo' },
+              { value: 'material', label: 'Material' },
+            ]}
+          />
           <MaterialsTable
             materials={filteredMaterials}
             selectedId={editingMaterial?.id ?? null}
@@ -2465,28 +2501,18 @@ function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers
       />
       <section className="panel__section">
         <SectionHeader title="Fornecedores" />
-        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
-          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-            <label className="form__group">
-              <span>Campo</span>
-              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-                <option value="all">Todos</option>
-                <option value="razao_social">Razão social</option>
-                <option value="cnpj">CNPJ</option>
-                <option value="contato">Contato</option>
-              </select>
-            </label>
-            <label className="form__group">
-              <span>Pesquisar</span>
-              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
-            </label>
-            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
-                Limpar
-              </button>
-            </div>
-          </div>
-        </div>
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'razao_social', label: 'Razão social' },
+            { value: 'cnpj', label: 'CNPJ' },
+            { value: 'contato', label: 'Contato' },
+          ]}
+        />
         <div className="table" style={{ marginTop: '8px' }}>
           <div className="table__row table__head">
             <span>Razão social</span>
@@ -2498,10 +2524,9 @@ function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers
             return (
               <div
                 key={supplier.id || supplier.cnpj}
-                className="table__row"
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
                 role="button"
                 tabIndex={0}
-                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
                 onClick={() => setEditing(supplier)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') setEditing(supplier);
@@ -2570,29 +2595,19 @@ function CustomersPage({
       />
       <section className="panel__section">
         <SectionHeader title="Clientes" />
-        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
-          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-            <label className="form__group">
-              <span>Campo</span>
-              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-                <option value="all">Todos</option>
-                <option value="nome">Nome</option>
-                <option value="cpf">CPF</option>
-                <option value="cnpj">CNPJ</option>
-                <option value="email">Email</option>
-              </select>
-            </label>
-            <label className="form__group">
-              <span>Pesquisar</span>
-              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
-            </label>
-            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
-                Limpar
-              </button>
-            </div>
-          </div>
-        </div>
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'nome', label: 'Nome' },
+            { value: 'cpf', label: 'CPF' },
+            { value: 'cnpj', label: 'CNPJ' },
+            { value: 'email', label: 'Email' },
+          ]}
+        />
         <div className="table" style={{ marginTop: '8px' }}>
           <div className="table__row table__head">
             <span>Nome</span>
@@ -2605,10 +2620,9 @@ function CustomersPage({
             return (
               <div
                 key={customer.id || customer.nome}
-                className="table__row"
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
                 role="button"
                 tabIndex={0}
-                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
                 onClick={() => setEditing(customer)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') setEditing(customer);
@@ -2662,28 +2676,18 @@ function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; ph
       <PhoneForm customers={customers} onSubmit={onSubmit} editing={editing} onClearEditing={() => setEditing(null)} />
       <section className="panel__section">
         <SectionHeader title="Telefones" />
-        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
-          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-            <label className="form__group">
-              <span>Campo</span>
-              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
-                <option value="all">Todos</option>
-                <option value="cliente">Cliente</option>
-                <option value="ddd">DDD</option>
-                <option value="numero">Número</option>
-              </select>
-            </label>
-            <label className="form__group">
-              <span>Pesquisar</span>
-              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
-            </label>
-            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
-              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
-                Limpar
-              </button>
-            </div>
-          </div>
-        </div>
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'cliente', label: 'Cliente' },
+            { value: 'ddd', label: 'DDD' },
+            { value: 'numero', label: 'Número' },
+          ]}
+        />
         <div className="table" style={{ marginTop: '8px' }}>
           <div className="table__row table__head">
             <span>Cliente</span>
@@ -2696,10 +2700,9 @@ function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; ph
             return (
               <div
                 key={phone.id || `${phone.ddd}-${phone.numero}`}
-                className="table__row"
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
                 role="button"
                 tabIndex={0}
-                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
                 onClick={() => setEditing(phone)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') setEditing(phone);
