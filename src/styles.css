@@ -356,6 +356,24 @@ textarea {
   gap: 10px;
 }
 
+.table__row.is-selectable {
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.table__row.is-selectable:hover {
+  background: #f7fbff;
+}
+
+.table__row.is-selected {
+  box-shadow: inset 0 0 0 2px var(--primary, #35c8b4);
+  background: #f4fffc;
+}
+
+.table--addresses .table__row {
+  grid-template-columns: 2fr 1fr;
+}
+
 .table__head {
   background: #f0f4f9;
   font-weight: 700;
