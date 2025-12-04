@@ -721,16 +721,24 @@ function AddressForm({
         {displayedAddresses.map((address) => {
           const isSelected = editing?.id === address.id;
           return (
-            <button
+            <div
               key={address.id || `${address.rua}-${address.numero}`}
-              type="button"
+              role="button"
+              tabIndex={0}
               className="table__row"
-              style={isSelected ? { border: '2px solid var(--primary, #35c8b4)' } : undefined}
+              style={
+                isSelected
+                  ? { boxShadow: 'inset 0 0 0 2px var(--primary, #35c8b4)', cursor: 'pointer' }
+                  : { cursor: 'pointer' }
+              }
               onClick={() => handleSelect(address)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleSelect(address);
+              }}
             >
               <span className="table__cell">{address.rua} {address.numero}</span>
               <span className="table__cell">{address.cep}</span>
-            </button>
+            </div>
           );
         })}
         {displayedAddresses.length === 0 && (
