@@ -356,6 +356,10 @@ textarea {
   gap: 10px;
 }
 
+.table--addresses .table__row {
+  grid-template-columns: 2fr 1fr;
+}
+
 .table__head {
   background: #f0f4f9;
   font-weight: 700;

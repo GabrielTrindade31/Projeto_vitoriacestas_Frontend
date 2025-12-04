@@ -713,7 +713,7 @@ function AddressForm({
         </label>
       </div>
 
-      <div className="table" style={{ marginTop: '16px' }}>
+      <div className="table table--addresses" style={{ marginTop: '16px' }}>
         <div className="table__row table__head">
           <span>Endereço</span>
           <span>CEP</span>
