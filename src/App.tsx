@@ -580,9 +580,11 @@ function SectionHeader({ title, subtitle, extra }: { title: string; subtitle?: s
 function AddressForm({
   onSubmit,
   onSearch,
+  addresses,
 }: {
   onSubmit: (address: Address) => Promise<void>;
-  onSearch: (term: string) => Promise<Address[]>;
+  onSearch: (term: string, field?: string) => Promise<Address[]>;
+  addresses: Address[];
 }) {
   const [form, setForm] = useState<Address>({ rua: '', cep: '', numero: '' });
   const [loading, setLoading] = useState(false);
@@ -590,15 +592,25 @@ function AddressForm({
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<Address[]>([]);
   const [editing, setEditing] = useState<Address | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchField, setSearchField] = useState<'all' | 'id' | 'rua' | 'numero' | 'cep'>('all');
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const displayedAddresses = results.length ? results : addresses;
+
+  const handleSubmit = async (
+    event?: React.FormEvent | React.MouseEvent<HTMLButtonElement>,
+    mode: 'create' | 'update' = editing ? 'update' : 'create'
+  ) => {
+    event?.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, id: editing?.id, cep: digitsOnly(form.cep) });
+      const payload = { ...form, id: mode === 'update' ? editing?.id : undefined, cep: digitsOnly(form.cep) } as Address;
+      await onSubmit(payload);
       setForm({ rua: '', cep: '', numero: '' });
-      setEditing(null);
+      if (mode === 'update') {
+        setEditing(null);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar endereço');
     } finally {
@@ -607,7 +619,7 @@ function AddressForm({
   };
 
   const handleSearch = async () => {
-    const data = await onSearch(searchTerm);
+    const data = await onSearch(searchTerm, searchField === 'all' ? undefined : searchField);
     setResults(data);
   };
 
@@ -616,41 +628,63 @@ function AddressForm({
     setForm({ rua: address.rua, numero: String(address.numero), cep: address.cep });
   };
 
+  const resetSearch = () => {
+    setResults([]);
+    setSearchTerm('');
+    setShowSearch(false);
+  };
+
   return (
-    <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-        <label className="form__group">
-          <span>Pesquisar endereço</span>
-          <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Rua, número ou CEP" />
-        </label>
-        <div className="form__group">
-          <button className="btn" type="button" onClick={handleSearch}>
+    <form className="form" onSubmit={(e) => handleSubmit(e, editing ? 'update' : 'create')}>
+      <div className="table__actions" style={{ marginBottom: '12px', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            className="btn btn--ghost"
+            type="button"
+            style={{ padding: '8px 12px', minWidth: 0 }}
+            onClick={() => setShowSearch((prev) => !prev)}
+          >
             Buscar
           </button>
+          {editing && <span className="badge">Editando #{editing.id}</span>}
         </div>
-        {editing && (
-          <div className="form__group">
-            <span className="muted">Editando #{editing.id}</span>
-            <button className="btn btn--ghost" type="button" onClick={() => setEditing(null)}>
-              Cancelar edição
-            </button>
-          </div>
+        {results.length > 0 && (
+          <button className="btn btn--ghost" type="button" onClick={resetSearch}>
+            Limpar busca
+          </button>
         )}
       </div>
-      {results.length > 0 && (
-        <div className="table" style={{ marginBottom: '12px' }}>
-          <div className="table__row table__head">
-            <span>Endereço</span>
-            <span>CEP</span>
+
+      {showSearch && (
+        <div className="search-panel search-panel--inline">
+          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+            <label className="form__group">
+              <span>Campo</span>
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="id">ID</option>
+                <option value="rua">Rua</option>
+                <option value="numero">Número</option>
+                <option value="cep">CEP</option>
+              </select>
+            </label>
+            <label className="form__group">
+              <span>Pesquisar</span>
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Digite ID, rua, número ou CEP"
+              />
+            </label>
+            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+              <button className="btn" type="button" onClick={handleSearch}>
+                Buscar
+              </button>
+            </div>
           </div>
-          {results.map((address) => (
-            <button key={address.id || `${address.rua}-${address.numero}`} type="button" className="table__row" onClick={() => handleSelect(address)}>
-              <span className="table__cell">{address.rua} {address.numero}</span>
-              <span className="table__cell">{address.cep}</span>
-            </button>
-          ))}
         </div>
       )}
+
       <div className="grid grid--3">
         <label className="form__group">
           <span>Rua</span>
@@ -671,10 +705,46 @@ function AddressForm({
           />
         </label>
       </div>
+
+      <div className="table" style={{ marginTop: '16px' }}>
+        <div className="table__row table__head">
+          <span>Endereço</span>
+          <span>CEP</span>
+        </div>
+        {displayedAddresses.map((address) => {
+          const isSelected = editing?.id === address.id;
+          return (
+            <button
+              key={address.id || `${address.rua}-${address.numero}`}
+              type="button"
+              className="table__row"
+              style={isSelected ? { border: '2px solid var(--primary, #35c8b4)' } : undefined}
+              onClick={() => handleSelect(address)}
+            >
+              <span className="table__cell">{address.rua} {address.numero}</span>
+              <span className="table__cell">{address.cep}</span>
+            </button>
+          );
+        })}
+        {displayedAddresses.length === 0 && (
+          <div className="table__row">
+            <span className="table__cell">Nenhum endereço encontrado.</span>
+          </div>
+        )}
+      </div>
+
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
-        <button className="btn" type="submit" disabled={loading}>
+      <div className="form__actions" style={{ gap: '8px' }}>
+        <button className="btn" type="button" disabled={loading} onClick={(e) => handleSubmit(e, 'create')}>
           {loading ? 'Salvando...' : 'Cadastrar endereço'}
+        </button>
+        <button
+          className="btn btn--ghost"
+          type="button"
+          disabled={!editing || loading}
+          onClick={(e) => handleSubmit(e, 'update')}
+        >
+          Atualizar
         </button>
       </div>
     </form>
@@ -2521,11 +2591,12 @@ function App() {
   };
 
   const searchAddresses = useCallback(
-    async (term: string) => {
+    async (term: string, field?: string) => {
       const query = term.trim();
       if (!query) return [] as Address[];
       try {
-        const res = await request<any>(`/addresses/search?query=${encodeURIComponent(query)}`);
+        const url = `/addresses/search?query=${encodeURIComponent(query)}${field ? `&field=${encodeURIComponent(field)}` : ''}`;
+        const res = await request<any>(url);
         const data = (res.data?.addresses || res.data || res.addresses || []) as Address[];
         return data;
       } catch (err) {
@@ -2756,18 +2827,12 @@ function App() {
           <p className="muted">Rua, número e CEP são obrigatórios.</p>
         </div>
       </header>
-      <AddressForm onSubmit={handleCreateAddress} onSearch={searchAddresses} />
+      <AddressForm onSubmit={handleCreateAddress} onSearch={searchAddresses} addresses={addresses} />
       <BulkImport
         label="Importar endereços (.csv/.json)"
         exampleHint="Campos: rua, numero, cep"
         onImport={importAddresses}
       />
-      <SimpleList
-        title="Endereços"
-        items={addresses as any}
-              emptyMessage="Nenhum endereço encontrado."
-              descriptor={(addr: Address) => `${addr.rua}, ${addr.numero} - CEP ${addr.cep}`}
-            />
           </div>
         );
       case 'phones':
