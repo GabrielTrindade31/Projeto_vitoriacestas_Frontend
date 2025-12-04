@@ -766,10 +766,36 @@ function AddressForm({
   );
 }
 
-function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (customer: Customer) => Promise<void> }) {
+function CustomerForm({
+  addresses,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  addresses: Address[];
+  onSubmit: (customer: Customer) => Promise<void>;
+  editing?: Customer | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Customer>({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        nome: editing.nome,
+        email: editing.email,
+        data_nascimento: normalizeDateValue(editing.data_nascimento) || '',
+        cpf: editing.cpf || '',
+        cnpj: editing.cnpj || '',
+        endereco_id: editing.endereco_id,
+      });
+    } else {
+      setForm({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -786,6 +812,7 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         cnpj: form.cnpj ? digitsOnly(form.cnpj) : undefined,
       });
       setForm({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar cliente');
     } finally {
@@ -837,19 +864,48 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar cliente'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar cliente' : 'Cadastrar cliente'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (phone: Phone) => Promise<void> }) {
+function PhoneForm({
+  customers,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  customers: Customer[];
+  onSubmit: (phone: Phone) => Promise<void>;
+  editing?: Phone | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        cliente_id: editing.cliente_id,
+        ddi: editing.ddi || '55',
+        ddd: editing.ddd || '',
+        numero: editing.numero || '',
+      });
+    } else {
+      setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -863,6 +919,7 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
         cliente_id: form.cliente_id ? Number(form.cliente_id) : undefined,
       });
       setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar telefone');
     } finally {
@@ -931,16 +988,31 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar telefone'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar telefone' : 'Cadastrar telefone'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (supplier: Supplier) => Promise<void> }) {
+function SupplierForm({
+  addresses,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  addresses: Address[];
+  onSubmit: (supplier: Supplier) => Promise<void>;
+  editing?: Supplier | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Supplier>({
     cnpj: '',
     razao_social: '',
@@ -954,6 +1026,23 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
   const [error, setError] = useState<string | null>(null);
 
   const maskedPhone = maskPhone(`${form.ddi || ''}${form.telefone || ''}`, form.ddi || '55');
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        cnpj: editing.cnpj,
+        razao_social: editing.razao_social,
+        contato: editing.contato,
+        email: editing.email || '',
+        telefone: editing.telefone || '',
+        ddi: editing.ddi || '55',
+        endereco_id: normalizeIdValue(editing.endereco_id),
+      });
+    } else {
+      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -972,6 +1061,7 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         endereco_id: normalizeIdValue(form.endereco_id),
       });
       setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar fornecedor');
     } finally {
@@ -1033,10 +1123,15 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar fornecedor'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar fornecedor' : 'Cadastrar fornecedor'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
@@ -2336,6 +2431,24 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
 }
 
 function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers: Supplier[]; addresses: Address[]; onCreate: (supplier: Supplier) => Promise<void>; onImport: (rows: any[]) => Promise<void> }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'razao_social' | 'cnpj' | 'contato'>('all');
+  const [editing, setEditing] = useState<Supplier | null>(null);
+
+  const filteredSuppliers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return suppliers;
+    return suppliers.filter((sup) => {
+      const fields: Record<string, string> = {
+        razao_social: sup.razao_social.toLowerCase(),
+        cnpj: digitsOnly(sup.cnpj).toLowerCase(),
+        contato: sup.contato.toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [searchField, searchTerm, suppliers]);
+
   return (
     <div className="panel">
       <header className="panel__header">
@@ -2344,32 +2457,266 @@ function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers
           <p className="muted">CNPJ, contato e endereço opcional conforme tabela.</p>
         </div>
       </header>
-      <SupplierForm addresses={addresses} onSubmit={onCreate} />
+      <SupplierForm addresses={addresses} onSubmit={onCreate} editing={editing} onClearEditing={() => setEditing(null)} />
       <BulkImport
         label="Importar fornecedores (.csv/.json)"
         exampleHint="Cabeçalhos esperados: cnpj, razaoSocial, contato, email, telefone, enderecoId"
         onImport={onImport}
       />
       <section className="panel__section">
-        <SectionHeader title="Últimos fornecedores" />
-        {suppliers.length ? (
-          <ul className="list list--bordered">
-            {suppliers.map((supplier) => (
-              <li key={supplier.id || supplier.cnpj} className="list__item">
-                <div>
-                  <strong>{supplier.razao_social}</strong>
-                  <p className="muted">CNPJ {maskCnpj(supplier.cnpj)}</p>
-                </div>
-                <div className="list__actions">
-                  {supplier.telefone && <span className="badge">{maskPhone(supplier.telefone)}</span>}
-                  {supplier.email && <span className="badge badge--soft">{supplier.email}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState message="Nenhum fornecedor cadastrado." />
-        )}
+        <SectionHeader title="Fornecedores" />
+        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+            <label className="form__group">
+              <span>Campo</span>
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="razao_social">Razão social</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="contato">Contato</option>
+              </select>
+            </label>
+            <label className="form__group">
+              <span>Pesquisar</span>
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
+            </label>
+            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Razão social</span>
+            <span>Contato</span>
+            <span>CNPJ</span>
+          </div>
+          {filteredSuppliers.map((supplier) => {
+            const isSelected = editing?.id === supplier.id;
+            return (
+              <div
+                key={supplier.id || supplier.cnpj}
+                className="table__row"
+                role="button"
+                tabIndex={0}
+                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
+                onClick={() => setEditing(supplier)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(supplier);
+                }}
+              >
+                <span className="table__cell">{supplier.razao_social}</span>
+                <span className="table__cell">{supplier.contato}</span>
+                <span className="table__cell">{maskCnpj(supplier.cnpj)}</span>
+              </div>
+            );
+          })}
+          {!filteredSuppliers.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum fornecedor encontrado.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CustomersPage({
+  customers,
+  addresses,
+  onSubmit,
+  onImport,
+}: {
+  customers: Customer[];
+  addresses: Address[];
+  onSubmit: (customer: Customer) => Promise<void>;
+  onImport: (rows: any[]) => Promise<void>;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'nome' | 'cpf' | 'cnpj' | 'email'>('all');
+  const [editing, setEditing] = useState<Customer | null>(null);
+
+  const filteredCustomers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return customers;
+    return customers.filter((cust) => {
+      const fields: Record<string, string> = {
+        nome: cust.nome.toLowerCase(),
+        cpf: digitsOnly(cust.cpf || '').toLowerCase(),
+        cnpj: digitsOnly(cust.cnpj || '').toLowerCase(),
+        email: (cust.email || '').toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [customers, searchField, searchTerm]);
+
+  return (
+    <div className="panel">
+      <header className="panel__header">
+        <div>
+          <h1>Clientes</h1>
+          <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
+        </div>
+      </header>
+      <CustomerForm addresses={addresses} onSubmit={onSubmit} editing={editing} onClearEditing={() => setEditing(null)} />
+      <BulkImport
+        label="Importar clientes (.csv/.json)"
+        exampleHint="Campos: nome, email, dataNascimento, cpf/cnpj, enderecoId"
+        onImport={onImport}
+      />
+      <section className="panel__section">
+        <SectionHeader title="Clientes" />
+        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+            <label className="form__group">
+              <span>Campo</span>
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="nome">Nome</option>
+                <option value="cpf">CPF</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="email">Email</option>
+              </select>
+            </label>
+            <label className="form__group">
+              <span>Pesquisar</span>
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
+            </label>
+            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Nome</span>
+            <span>Documento</span>
+            <span>Email</span>
+          </div>
+          {filteredCustomers.map((customer) => {
+            const isSelected = editing?.id === customer.id;
+            const doc = customer.cpf ? maskCpf(customer.cpf) : customer.cnpj ? maskCnpj(customer.cnpj) : '--';
+            return (
+              <div
+                key={customer.id || customer.nome}
+                className="table__row"
+                role="button"
+                tabIndex={0}
+                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
+                onClick={() => setEditing(customer)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(customer);
+                }}
+              >
+                <span className="table__cell">{customer.nome}</span>
+                <span className="table__cell">{doc}</span>
+                <span className="table__cell">{customer.email || '--'}</span>
+              </div>
+            );
+          })}
+          {!filteredCustomers.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum cliente encontrado.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; phones: Phone[]; onSubmit: (phone: Phone) => Promise<void> }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'cliente' | 'ddd' | 'numero'>('all');
+  const [editing, setEditing] = useState<Phone | null>(null);
+
+  const filteredPhones = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return phones;
+    return phones.filter((phone) => {
+      const clienteNome = customers.find((c) => c.id === phone.cliente_id)?.nome?.toLowerCase() || '';
+      const fields: Record<string, string> = {
+        cliente: clienteNome,
+        ddd: (phone.ddd || '').toLowerCase(),
+        numero: digitsOnly(phone.numero || '').toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [customers, phones, searchField, searchTerm]);
+
+  return (
+    <div className="panel">
+      <header className="panel__header">
+        <div>
+          <h1>Telefones</h1>
+          <p className="muted">Associados a clientes com formatação +55 (DDD) número.</p>
+        </div>
+      </header>
+      <PhoneForm customers={customers} onSubmit={onSubmit} editing={editing} onClearEditing={() => setEditing(null)} />
+      <section className="panel__section">
+        <SectionHeader title="Telefones" />
+        <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+          <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+            <label className="form__group">
+              <span>Campo</span>
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value as any)}>
+                <option value="all">Todos</option>
+                <option value="cliente">Cliente</option>
+                <option value="ddd">DDD</option>
+                <option value="numero">Número</option>
+              </select>
+            </label>
+            <label className="form__group">
+              <span>Pesquisar</span>
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Digite para filtrar" />
+            </label>
+            <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start' }}>
+              <button className="btn btn--ghost" type="button" onClick={() => setSearchTerm('')}>
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Cliente</span>
+            <span>DDD</span>
+            <span>Número</span>
+          </div>
+          {filteredPhones.map((phone) => {
+            const isSelected = editing?.id === phone.id;
+            const clienteNome = customers.find((c) => c.id === phone.cliente_id)?.nome || 'Cliente';
+            return (
+              <div
+                key={phone.id || `${phone.ddd}-${phone.numero}`}
+                className="table__row"
+                role="button"
+                tabIndex={0}
+                style={isSelected ? { boxShadow: 'inset 0 0 0 2px var(--primary)' } : undefined}
+                onClick={() => setEditing(phone)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(phone);
+                }}
+              >
+                <span className="table__cell">{clienteNome}</span>
+                <span className="table__cell">{phone.ddd || '--'}</span>
+                <span className="table__cell">{formatPhoneInput(phone.ddi || '55', phone.ddd || '', phone.numero || '')}</span>
+              </div>
+            );
+          })}
+          {!filteredPhones.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum telefone encontrado.</span>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
@@ -2732,23 +3079,39 @@ function App() {
 
   const handleCreateSupplier = async (payload: Supplier) => {
     const cnpjDigits = digitsOnly(payload.cnpj);
-    if (suppliers.some((sup) => digitsOnly(sup.cnpj) === cnpjDigits)) {
+    const existingSupplier = suppliers.find((sup) => digitsOnly(sup.cnpj) === cnpjDigits);
+    if (!payload.id && existingSupplier) {
       setFeedback('Fornecedor já cadastrado com este CNPJ.');
       return;
     }
     const phoneDigits = digitsOnly(payload.telefone || '');
     const ddiValue = normalizeOptionalString(payload.ddi) || '';
 
+    const body = {
+      cnpj: digitsOnly(payload.cnpj),
+      razaoSocial: payload.razao_social.trim(),
+      contato: payload.contato.trim(),
+      email: normalizeOptionalString(payload.email),
+      telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
+      enderecoId: normalizeIdValue(payload.endereco_id),
+    };
+
+    if (payload.id) {
+      const res = await request<Supplier>(`/suppliers/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapSupplierResponse({ ...payload, ...res.data });
+      setSuppliers((prev) => prev.map((sup) => (sup.id === payload.id ? updated : sup)));
+      setFeedback('Fornecedor atualizado com sucesso.');
+      loadSuppliers();
+      setTimeout(loadSuppliers, 2000);
+      return;
+    }
+
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
-      body: JSON.stringify({
-        cnpj: digitsOnly(payload.cnpj),
-        razaoSocial: payload.razao_social.trim(),
-        contato: payload.contato.trim(),
-        email: normalizeOptionalString(payload.email),
-        telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
-        enderecoId: normalizeIdValue(payload.endereco_id),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Fornecedor salvo com sucesso.');
     setSuppliers((prev) => [mapSupplierResponse(res.data), ...prev]);
@@ -2759,24 +3122,41 @@ function App() {
   const handleCreateCustomer = async (payload: Customer) => {
     const cpfDigits = digitsOnly(payload.cpf || '');
     const cnpjDigits = digitsOnly(payload.cnpj || '');
-    if (customers.some((cust) => digitsOnly(cust.cpf || '') === cpfDigits && cpfDigits)) {
+    const existingCpf = customers.find((cust) => digitsOnly(cust.cpf || '') === cpfDigits && cpfDigits);
+    if (!payload.id && existingCpf) {
       setFeedback('Cliente já cadastrado com este CPF.');
       return;
     }
-    if (customers.some((cust) => digitsOnly(cust.cnpj || '') === cnpjDigits && cnpjDigits)) {
+    const existingCnpj = customers.find((cust) => digitsOnly(cust.cnpj || '') === cnpjDigits && cnpjDigits);
+    if (!payload.id && existingCnpj) {
       setFeedback('Cliente já cadastrado com este CNPJ.');
       return;
     }
+    const body = {
+      nome: payload.nome.trim(),
+      email: normalizeOptionalString(payload.email),
+      dataNascimento: normalizeDateValue(payload.data_nascimento),
+      cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
+      cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
+      enderecoId: normalizeIdValue(payload.endereco_id),
+    };
+
+    if (payload.id) {
+      const res = await request<Customer>(`/customers/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapCustomerResponse({ ...payload, ...res.data });
+      setCustomers((prev) => prev.map((cust) => (cust.id === payload.id ? updated : cust)));
+      setFeedback('Cliente atualizado com sucesso.');
+      loadCustomers();
+      setTimeout(loadCustomers, 2000);
+      return;
+    }
+
     const res = await request<Customer>('/customers', {
       method: 'POST',
-      body: JSON.stringify({
-        nome: payload.nome.trim(),
-        email: normalizeOptionalString(payload.email),
-        dataNascimento: normalizeDateValue(payload.data_nascimento),
-        cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
-        cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
-        enderecoId: normalizeIdValue(payload.endereco_id),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Cliente salvo com sucesso.');
     setCustomers((prev) => [mapCustomerResponse(res.data), ...prev]);
@@ -2841,13 +3221,28 @@ function App() {
   );
 
   const handleCreatePhone = async (payload: Phone) => {
+    const body = {
+      clienteId: normalizeIdValue(payload.cliente_id),
+      ddd: digitsOnly(payload.ddd || ''),
+      numero: digitsOnly(payload.numero || ''),
+    };
+
+    if (payload.id) {
+      const res = await request<Phone>(`/phones/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapPhoneResponse({ ...payload, ...res.data });
+      setPhones((prev) => prev.map((phone) => (phone.id === payload.id ? updated : phone)));
+      setFeedback('Telefone atualizado com sucesso.');
+      loadPhones();
+      setTimeout(loadPhones, 2000);
+      return;
+    }
+
     const res = await request<Phone>('/phones', {
       method: 'POST',
-      body: JSON.stringify({
-        clienteId: normalizeIdValue(payload.cliente_id),
-        ddd: digitsOnly(payload.ddd || ''),
-        numero: digitsOnly(payload.numero || ''),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Telefone salvo com sucesso.');
     setPhones((prev) => [mapPhoneResponse(res.data), ...prev]);
@@ -3030,26 +3425,7 @@ function App() {
         return <SuppliersPage suppliers={suppliers} addresses={addresses} onCreate={handleCreateSupplier} onImport={importSuppliers} />;
       case 'customers':
         return (
-          <div className="panel">
-      <header className="panel__header">
-        <div>
-          <h1>Clientes</h1>
-          <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
-        </div>
-      </header>
-      <CustomerForm addresses={addresses} onSubmit={handleCreateCustomer} />
-      <BulkImport
-        label="Importar clientes (.csv/.json)"
-        exampleHint="Campos: nome, email, dataNascimento, cpf/cnpj, enderecoId"
-        onImport={importCustomers}
-      />
-      <SimpleList
-        title="Clientes"
-        items={customers}
-              emptyMessage="Nenhum cliente encontrado."
-              descriptor={(item) => item.email || 'Sem e-mail informado'}
-            />
-          </div>
+          <CustomersPage customers={customers} addresses={addresses} onSubmit={handleCreateCustomer} onImport={importCustomers} />
         );
       case 'addresses':
         return (
@@ -3069,24 +3445,7 @@ function App() {
           </div>
         );
       case 'phones':
-        return (
-          <div className="panel">
-            <header className="panel__header">
-              <div>
-                <h1>Telefones</h1>
-                <p className="muted">Associados a clientes com formatação +55 (DDD) número.</p>
-              </div>
-            </header>
-            <PhoneForm customers={customers} onSubmit={handleCreatePhone} />
-            <SimpleList
-              title="Telefones"
-              items={phones as any}
-              emptyMessage="Nenhum telefone encontrado."
-              descriptor={(phone: Phone) =>
-                formatPhoneInput(phone.ddi || '55', phone.ddd || '', phone.numero || '')}
-            />
-          </div>
-        );
+        return <PhonesPage customers={customers} phones={phones} onSubmit={handleCreatePhone} />;
       default:
         return <Dashboard products={products} materials={materials} suppliers={suppliers} customers={customers} />;
     }
