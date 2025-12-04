@@ -456,6 +456,41 @@ textarea {
   background: rgba(15, 157, 88, 0.08);
 }
 
+.chart {
+  display: grid;
+  gap: 10px;
+}
+
+.chart__row {
+  display: grid;
+  grid-template-columns: 1fr 3fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.chart__label {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chart__bar-wrapper {
+  height: 12px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.chart__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  transition: width 200ms ease;
+}
+
+.chart__value {
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

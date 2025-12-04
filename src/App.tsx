@@ -22,6 +22,7 @@ interface Address {
   rua: string;
   cep: string;
   numero: string;
+  bairro?: string;
 }
 
 interface Customer {
@@ -313,6 +314,11 @@ const mapPhoneResponse = (phone: any): Phone => ({
   ...phone,
   cliente_id: normalizeIdValue(phone?.cliente_id ?? phone?.clienteId) ?? undefined,
   ddi: phone?.ddi ?? '55',
+});
+
+const mapAddressResponse = (address: any): Address => ({
+  ...address,
+  bairro: address?.bairro ?? address?.district ?? undefined,
 });
 
 const mapManufacturingResponse = (row: any): Manufacturing => ({
@@ -2726,6 +2732,44 @@ function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; ph
 }
 
 function Dashboard({ products, materials, suppliers, customers }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; customers: Customer[] }) {
+function BarChart({ data }: { data: { label: string; value: number }[] }) {
+  const max = Math.max(...data.map((item) => item.value), 0);
+
+  return (
+    <div className="chart">
+      {data.map((item) => (
+        <div key={item.label} className="chart__row">
+          <div className="chart__label">{item.label}</div>
+          <div className="chart__bar-wrapper">
+            <div className="chart__bar" style={{ width: `${max ? (item.value / max) * 100 : 0}%` }} />
+          </div>
+          <div className="chart__value">{item.value.toLocaleString('pt-BR')}</div>
+        </div>
+      ))}
+      {!data.length && <EmptyState message="Sem dados suficientes para gerar o gráfico." />}
+    </div>
+  );
+}
+
+function Dashboard({
+  products,
+  materials,
+  suppliers,
+  customers,
+  shipments,
+  deliveries,
+  orders,
+  addresses,
+}: {
+  products: Product[];
+  materials: RawMaterial[];
+  suppliers: Supplier[];
+  customers: Customer[];
+  shipments: Shipment[];
+  deliveries: MaterialDelivery[];
+  orders: Order[];
+  addresses: Address[];
+}) {
   const summary = [
     { label: 'Produtos', value: products.length },
     { label: 'Matérias-primas', value: materials.length },
@@ -2733,12 +2777,116 @@ function Dashboard({ products, materials, suppliers, customers }: { products: Pr
     { label: 'Clientes', value: customers.length },
   ];
 
+  const addressById = useMemo(() => {
+    return addresses.reduce<Record<number, Address>>((acc, addr) => {
+      if (addr.id) acc[addr.id] = addr;
+      return acc;
+    }, {});
+  }, [addresses]);
+
+  const customerById = useMemo(() => {
+    return customers.reduce<Record<number, Customer>>((acc, customer) => {
+      if (customer.id) acc[customer.id] = customer;
+      return acc;
+    }, {});
+  }, [customers]);
+
+  const parseDate = (value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const monthLabel = (date: Date) =>
+    date.toLocaleDateString('pt-BR', {
+      month: 'short',
+      year: 'numeric',
+    });
+
+  const monthlySales = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+
+    shipments.forEach((shipment) => {
+      const date = parseDate(shipment.data_envio);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      labels[key] = monthLabel(date);
+      const amount = (shipment.preco ?? 0) * (shipment.quantidade ?? 1);
+      totals[key] = (totals[key] || 0) + amount;
+    });
+
+    return Object.entries(totals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ label: labels[key] || key, value }));
+  }, [shipments]);
+
+  const monthlyPurchases = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+
+    deliveries.forEach((delivery) => {
+      const date = parseDate(delivery.data_entrada);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      labels[key] = monthLabel(date);
+      const amount = (delivery.custo ?? 0) * (delivery.quantidade ?? 1);
+      totals[key] = (totals[key] || 0) + amount;
+    });
+
+    return Object.entries(totals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ label: labels[key] || key, value }));
+  }, [deliveries]);
+
+  const topSellingProduct = useMemo(() => {
+    const totals: Record<number, number> = {};
+    shipments.forEach((shipment) => {
+      if (!shipment.produto_id) return;
+      const qty = normalizeNumberValue(shipment.quantidade, true) ?? 0;
+      totals[shipment.produto_id] = (totals[shipment.produto_id] || 0) + qty;
+    });
+    const [id, qty] = Object.entries(totals).sort(([, a], [, b]) => Number(b) - Number(a))[0] || [];
+    const productName = id ? products.find((prod) => prod.id === Number(id))?.nome || 'Produto' : null;
+    return productName ? { name: productName, qty } : null;
+  }, [products, shipments]);
+
+  const topPurchasedMaterial = useMemo(() => {
+    const totals: Record<number, number> = {};
+    deliveries.forEach((delivery) => {
+      if (!delivery.material_id) return;
+      const qty = normalizeNumberValue(delivery.quantidade, true) ?? 0;
+      totals[delivery.material_id] = (totals[delivery.material_id] || 0) + qty;
+    });
+    const [id, qty] = Object.entries(totals).sort(([, a], [, b]) => Number(b) - Number(a))[0] || [];
+    const materialName = id ? materials.find((mat) => mat.id === Number(id))?.nome || 'Matéria-prima' : null;
+    return materialName ? { name: materialName, qty } : null;
+  }, [deliveries, materials]);
+
+  const deliveriesByNeighborhood = useMemo(() => {
+    const totals: Record<string, number> = {};
+
+    shipments.forEach((shipment) => {
+      if (!shipment.pedido_id) return;
+      const order = orders.find((o) => o.id === shipment.pedido_id);
+      const customer = order?.cliente_id ? customerById[order.cliente_id] : null;
+      const address = customer?.endereco_id ? addressById[customer.endereco_id] : null;
+      const neighborhood = address?.bairro || order?.endereco || address?.rua || 'Sem bairro';
+      totals[neighborhood] = (totals[neighborhood] || 0) + (shipment.quantidade ?? 0);
+    });
+
+    return Object.entries(totals)
+      .sort(([, a], [, b]) => Number(b) - Number(a))
+      .slice(0, 5)
+      .map(([label, value]) => ({ label, value }));
+  }, [addressById, customerById, orders, shipments]);
+
   return (
     <div className="panel">
       <header className="panel__header">
         <div>
           <h1>Dashboard</h1>
-          <p className="muted">Visão rápida das principais entidades.</p>
+          <p className="muted">Visão rápida das principais entidades e desempenho.</p>
         </div>
       </header>
       <section className="panel__section grid grid--4">
@@ -2748,6 +2896,44 @@ function Dashboard({ products, materials, suppliers, customers }: { products: Pr
             <h2>{item.value}</h2>
           </div>
         ))}
+      </section>
+      <section className="panel__section grid grid--2">
+        <div className="card">
+          <SectionHeader title="Vendas mensais" subtitle="Total enviado por mês" />
+          <BarChart data={monthlySales} />
+        </div>
+        <div className="card">
+          <SectionHeader title="Compras mensais" subtitle="Entradas de materiais" />
+          <BarChart data={monthlyPurchases} />
+        </div>
+      </section>
+      <section className="panel__section grid grid--3">
+        <div className="card">
+          <SectionHeader title="Produto mais vendido" />
+          {topSellingProduct ? (
+            <>
+              <h3>{topSellingProduct.name}</h3>
+              <p className="muted">Quantidade enviada: {topSellingProduct.qty?.toLocaleString('pt-BR')}</p>
+            </>
+          ) : (
+            <EmptyState message="Sem vendas registradas." />
+          )}
+        </div>
+        <div className="card">
+          <SectionHeader title="Material mais comprado" />
+          {topPurchasedMaterial ? (
+            <>
+              <h3>{topPurchasedMaterial.name}</h3>
+              <p className="muted">Quantidade adquirida: {topPurchasedMaterial.qty?.toLocaleString('pt-BR')}</p>
+            </>
+          ) : (
+            <EmptyState message="Sem compras registradas." />
+          )}
+        </div>
+        <div className="card">
+          <SectionHeader title="Bairros com mais entregas" />
+          <BarChart data={deliveriesByNeighborhood} />
+        </div>
       </section>
       <section className="panel__section">
         <SectionHeader title="Sugestão de ordem" subtitle="1) Endereços → 2) Clientes/Fornecedores → 3) Telefones → 4) Itens" />
@@ -2875,7 +3061,7 @@ function App() {
   const loadAddresses = useCallback(async () => {
     try {
       const data = await guardedFetch<Address[]>('/addresses', 'addresses');
-      setAddresses(data || []);
+      setAddresses((data || []).map(mapAddressResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -3450,7 +3636,18 @@ function App() {
       case 'phones':
         return <PhonesPage customers={customers} phones={phones} onSubmit={handleCreatePhone} />;
       default:
-        return <Dashboard products={products} materials={materials} suppliers={suppliers} customers={customers} />;
+        return (
+          <Dashboard
+            products={products}
+            materials={materials}
+            suppliers={suppliers}
+            customers={customers}
+            shipments={shipments}
+            deliveries={deliveries}
+            orders={orders}
+            addresses={addresses}
+          />
+        );
     }
   }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage, orders, shipments, deliveries, manufacturing, feedbackRows, searchAddresses]);
 
