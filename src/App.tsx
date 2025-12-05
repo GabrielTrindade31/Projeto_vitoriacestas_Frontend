@@ -3386,6 +3386,7 @@ function App() {
       preco: normalizeNumberValue(payload.preco),
       fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
       imagemUrl: image,
+      imagem_url: image,
     };
 
     if (payload.id) {
@@ -3393,7 +3394,7 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapProductResponse({ ...payload, ...res.data, imagemUrl: image });
+      const updated = mapProductResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
       setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
       setFeedback('Produto atualizado com sucesso.');
       loadProducts();
@@ -3407,7 +3408,7 @@ function App() {
     });
     setFeedback('Produto inserido com sucesso.');
     cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, image);
-    const created = mapProductResponse({ ...res.data, imagem_url: image });
+    const created = mapProductResponse({ ...res.data, imagemUrl: image, imagem_url: image });
     setProducts((prev) => [created, ...prev]);
     loadProducts();
     setTimeout(loadProducts, 2000);
@@ -3435,6 +3436,7 @@ function App() {
       material: normalizeOptionalString(payload.material),
       acessorio: normalizeOptionalString(payload.acessorio),
       imagemUrl: image,
+      imagem_url: image,
     };
 
     if (payload.id) {
@@ -3442,7 +3444,7 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image });
+      const updated = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
       setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
       setFeedback('Matéria-prima atualizada com sucesso.');
       loadMaterials();
@@ -3456,7 +3458,7 @@ function App() {
     });
     setFeedback('Matéria-prima inserida com sucesso.');
     cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, image);
-    const created = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image });
+    const created = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
     setMaterials((prev) => [created, ...prev]);
     loadMaterials();
     setTimeout(loadMaterials, 2000);
