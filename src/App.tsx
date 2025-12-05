@@ -174,7 +174,7 @@ const buildPublicImageUrl = (value?: string | null) => {
   if (!normalized) return undefined;
   if (/^(https?:\/\/|blob:)/i.test(normalized)) return normalized;
 
-  const base = API_ORIGIN.replace(/\/+$, '');
+  const base = API_ORIGIN.replace(/\/+$/, '');
   const path = normalized.replace(/^\/+/, '');
   return `${base}/${path}`;
 };
