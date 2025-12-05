@@ -15,6 +15,8 @@ const API_BASE =
   import.meta.env.VITE_API_BASE ||
   'https://projeto-vitoriacestas-backend.vercel.app/api';
 
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
 const STORAGE_TOKEN_KEY = 'vitoriacestas_token';
 
 interface LoginPayload {
@@ -142,7 +144,24 @@ interface FeedbackRow {
 interface UploadResponse {
   url?: string;
   path?: string;
+  publicUrl?: string;
+  blobUrl?: string;
+  blobDownloadUrl?: string;
 }
+
+const resolveBestImageUrl = (payload?: Record<string, any> | null) => {
+  if (!payload) return undefined;
+  const raw =
+    payload.blobUrl ||
+    payload.blobDownloadUrl ||
+    payload.publicUrl ||
+    payload.url ||
+    payload.path ||
+    payload.imagem_url ||
+    payload.imagemUrl;
+
+  return buildPublicImageUrl(raw);
+};
 
 interface ColumnDef<T> {
   label: string;
@@ -162,6 +181,16 @@ const normalizeIdValue = (value?: number | string | null) => {
 const normalizeOptionalString = (value?: string | null) => {
   const trimmed = value?.trim() || '';
   return trimmed ? trimmed : null;
+};
+
+const buildPublicImageUrl = (value?: string | null) => {
+  const normalized = normalizeOptionalString(value ?? undefined);
+  if (!normalized) return undefined;
+  if (/^(https?:\/\/|blob:)/i.test(normalized)) return normalized;
+
+  const base = API_ORIGIN.replace(/\/+$/, '');
+  const path = normalized.replace(/^\/+/, '');
+  return `${base}/${path}`;
 };
 
 const normalizeNumberValue = (value?: number | string | null, allowNull = false) => {
@@ -248,6 +277,30 @@ const DDI_OPTIONS = [
 const PRODUCT_IMAGE_CACHE_KEY = 'vc_product_images';
 const MATERIAL_IMAGE_CACHE_KEY = 'vc_material_images';
 
+const extractProductImageMap = (rows: any[]): Record<string, string> => {
+  const map: Record<string, string> = {};
+
+  (rows || []).forEach((row) => {
+    const identifier =
+      normalizeIdValue(
+        row?.id ?? row?.itemId ?? row?.item_id ?? row?.produtoId ?? row?.produto_id ?? row?.productId ?? row?.product_id
+      ) ?? undefined;
+    const resolved =
+      resolveBestImageUrl(row) ||
+      buildPublicImageUrl(
+        row?.url || row?.publicUrl || row?.imagem_url || row?.imagemUrl || row?.blobUrl || row?.blobDownloadUrl
+      );
+
+    if (!identifier || !resolved) return;
+
+    const key = String(identifier);
+    map[key] = resolved;
+    cacheImage(PRODUCT_IMAGE_CACHE_KEY, key, resolved);
+  });
+
+  return map;
+};
+
 const loadImageCache = (key: string): Record<string, string> => {
   try {
     const raw = localStorage.getItem(key);
@@ -267,11 +320,23 @@ const saveImageCache = (key: string, cache: Record<string, string>) => {
 };
 
 const cacheImage = (key: string, identifier?: string | number | null, url?: string | null) => {
-  const safeUrl = normalizeOptionalString(url || undefined);
+  const safeUrl = buildPublicImageUrl(url);
   if (!identifier || !safeUrl) return;
   const cache = loadImageCache(key);
   cache[String(identifier)] = safeUrl;
   saveImageCache(key, cache);
+};
+
+const cacheProductImage = (product: Partial<Product>, url?: string | null) => {
+  const resolved = buildPublicImageUrl(url);
+  cacheImage(PRODUCT_IMAGE_CACHE_KEY, product.id, resolved);
+  cacheImage(PRODUCT_IMAGE_CACHE_KEY, product.codigo, resolved);
+};
+
+const cacheMaterialImage = (material: Partial<RawMaterial>, url?: string | null) => {
+  const resolved = buildPublicImageUrl(url);
+  cacheImage(MATERIAL_IMAGE_CACHE_KEY, material.id, resolved);
+  cacheImage(MATERIAL_IMAGE_CACHE_KEY, material.nome, resolved);
 };
 
 const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }>(
@@ -283,28 +348,56 @@ const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }
   return items.map((item) => {
     const identifier = getIdentifier(item);
     const cached = identifier ? cache[String(identifier)] : undefined;
-    if (cached && !item.imagem_url && !item.imagemUrl) {
-      return { ...item, imagem_url: cached, imagemUrl: cached } as T;
+    const resolved = buildPublicImageUrl(cached);
+
+    if (resolved && (!item.imagem_url && !item.imagemUrl)) {
+      return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
     }
+
+    if (resolved && resolved !== item.imagem_url && resolved !== item.imagemUrl) {
+      return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
+    }
+
     return item;
   });
 };
 
-const mapProductResponse = (product: any): Product => ({
-  ...product,
-  fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
-  fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
-  imagem_url: product?.imagem_url ?? product?.imagemUrl,
-  imagemUrl: product?.imagemUrl ?? product?.imagem_url,
-});
+const applyProductImageMap = (products: Product[], imageMap: Record<string, string>) => {
+  return products.map((product) => {
+    const identifier = normalizeIdValue(product.id ?? product.codigo ?? product.produtoId ?? product.produto_id);
+    const resolved = identifier ? buildPublicImageUrl(imageMap[String(identifier)]) : undefined;
 
-const mapMaterialResponse = (material: any): RawMaterial => ({
-  ...material,
-  datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
-  dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
-  imagem_url: material?.imagem_url ?? material?.imagemUrl,
-  imagemUrl: material?.imagemUrl ?? material?.imagem_url,
-});
+    if (resolved) {
+      return { ...product, imagem_url: resolved, imagemUrl: resolved };
+    }
+
+    return product;
+  });
+};
+
+const mapProductResponse = (product: any): Product => {
+  const image = resolveBestImageUrl(product);
+
+  return {
+    ...product,
+    fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+    fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+    imagem_url: image,
+    imagemUrl: image,
+  };
+};
+
+const mapMaterialResponse = (material: any): RawMaterial => {
+  const image = resolveBestImageUrl(material);
+
+  return {
+    ...material,
+    datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
+    dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
+    imagem_url: image,
+    imagemUrl: image,
+  };
+};
 
 const mapSupplierResponse = (supplier: any): Supplier => ({
   ...supplier,
@@ -3151,24 +3244,41 @@ function App() {
       formData.append('file', file);
       try {
         const res = await request<UploadResponse>('/upload', { method: 'POST', body: formData });
-        return res.data.url || res.data.path || URL.createObjectURL(file);
+        const preferredUrl =
+          res.data.blobUrl || res.data.blobDownloadUrl || res.data.publicUrl || res.data.url || res.data.path;
+
+        return buildPublicImageUrl(preferredUrl) || URL.createObjectURL(file);
       } catch (err: any) {
-        setFeedback('Ative o endpoint /upload no backend para salvar blobs. Pré-visualização local aplicada.');
+        setFeedback('Não foi possível enviar a imagem. Pré-visualização local aplicada.');
         return URL.createObjectURL(file);
       }
     },
     [request]
   );
 
+  const fetchProductImages = useCallback(async () => {
+    try {
+      const res = await request<any>('/products/images');
+      const rows = (res?.data?.items || res?.data || res?.items || res || []) as any[];
+      return extractProductImageMap(rows);
+    } catch (err) {
+      console.warn('Falha ao carregar imagens de produtos', err);
+      return {} as Record<string, string>;
+    }
+  }, [request]);
+
   const loadProducts = useCallback(async () => {
     try {
-      const data = await guardedFetch<Product[]>('/items', 'items');
-      const mapped = (data || []).map(mapProductResponse);
+      const [data, imageMap] = await Promise.all([
+        guardedFetch<Product[]>('/items', 'items'),
+        fetchProductImages(),
+      ]);
+      const mapped = applyProductImageMap((data || []).map(mapProductResponse), imageMap);
       setProducts(mergeCachedImages(mapped, PRODUCT_IMAGE_CACHE_KEY, (item) => item.codigo || item.id));
     } catch (err: any) {
       setFeedback(err.message);
     }
-  }, [guardedFetch]);
+  }, [fetchProductImages, guardedFetch]);
 
   const loadMaterials = useCallback(async () => {
     try {
@@ -3326,6 +3436,7 @@ function App() {
   }, [lastActivity, markActivity, saveToken, setPage, token]);
 
   const handleCreateProduct = async (payload: Product) => {
+    const image = resolveBestImageUrl(payload);
     const duplicated = products.find(
       (prod) =>
         prod.id !== payload.id &&
@@ -3343,7 +3454,8 @@ function App() {
       quantidade: normalizeNumberValue(payload.quantidade),
       preco: normalizeNumberValue(payload.preco),
       fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: image,
+      imagem_url: image,
     };
 
     if (payload.id) {
@@ -3351,7 +3463,8 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapProductResponse({ ...payload, ...res.data });
+      const updated = mapProductResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
+      cacheProductImage({ id: payload.id, codigo: payload.codigo }, image);
       setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
       setFeedback('Produto atualizado com sucesso.');
       loadProducts();
@@ -3364,14 +3477,15 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Produto inserido com sucesso.');
-    cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, payload.imagem_url ?? payload.imagemUrl);
-    const created = mapProductResponse({ ...res.data, imagem_url: payload.imagem_url ?? payload.imagemUrl });
+    cacheProductImage({ id: res.data?.id, codigo: payload.codigo }, image);
+    const created = mapProductResponse({ ...res.data, imagemUrl: image, imagem_url: image });
     setProducts((prev) => [created, ...prev]);
     loadProducts();
     setTimeout(loadProducts, 2000);
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const image = resolveBestImageUrl(payload);
     const duplicated = materials.find(
       (mat) =>
         mat.id !== payload.id &&
@@ -3391,7 +3505,8 @@ function App() {
       tamanho: normalizeOptionalString(payload.tamanho),
       material: normalizeOptionalString(payload.material),
       acessorio: normalizeOptionalString(payload.acessorio),
-      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: image,
+      imagem_url: image,
     };
 
     if (payload.id) {
@@ -3399,7 +3514,8 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapMaterialResponse({ ...payload, ...res.data });
+      const updated = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
+      cacheMaterialImage({ id: payload.id, nome: payload.nome }, image);
       setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
       setFeedback('Matéria-prima atualizada com sucesso.');
       loadMaterials();
@@ -3412,8 +3528,8 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Matéria-prima inserida com sucesso.');
-    cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, payload.imagem_url ?? payload.imagemUrl);
-    const created = mapMaterialResponse({ ...payload, ...res.data });
+    cacheMaterialImage({ id: res.data?.id, nome: payload.nome }, image);
+    const created = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
     setMaterials((prev) => [created, ...prev]);
     loadMaterials();
     setTimeout(loadMaterials, 2000);
