@@ -1,4 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart as ReBarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 const API_BASE =
   (window as any).APP_API_BASE ||
@@ -2731,21 +2741,39 @@ function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; ph
   );
 }
 
-function BarChart({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(...data.map((item) => item.value), 0);
+type ChartPoint = { label: string; value: number };
+
+function formatCurrencyBRL(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function BarChart({
+  data,
+  color = '#1fe4ce',
+  valueFormatter = (value: number) => value.toLocaleString('pt-BR'),
+}: {
+  data: ChartPoint[];
+  color?: string;
+  valueFormatter?: (value: number) => string | number;
+}) {
+  if (!data.length) return <EmptyState message="Sem dados suficientes para gerar o gráfico." />;
 
   return (
-    <div className="chart">
-      {data.map((item) => (
-        <div key={item.label} className="chart__row">
-          <div className="chart__label">{item.label}</div>
-          <div className="chart__bar-wrapper">
-            <div className="chart__bar" style={{ width: `${max ? (item.value / max) * 100 : 0}%` }} />
-          </div>
-          <div className="chart__value">{item.value.toLocaleString('pt-BR')}</div>
-        </div>
-      ))}
-      {!data.length && <EmptyState message="Sem dados suficientes para gerar o gráfico." />}
+    <div className="chart-card">
+      <ResponsiveContainer width="100%" height={260}>
+        <ReBarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-10} height={50} textAnchor="end" />
+          <YAxis tick={{ fontSize: 12 }} />
+          <RechartsTooltip
+            cursor={{ fill: 'rgba(31, 228, 206, 0.08)' }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }}
+            formatter={(value: number) => valueFormatter(value)}
+          />
+          <Legend formatter={(value) => value} wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="value" name="Total" radius={[6, 6, 0, 0]} fill={color} />
+        </ReBarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -2769,12 +2797,7 @@ function Dashboard({
   orders: Order[];
   addresses: Address[];
 }) {
-  const summary = [
-    { label: 'Produtos', value: products.length },
-    { label: 'Matérias-primas', value: materials.length },
-    { label: 'Fornecedores', value: suppliers.length },
-    { label: 'Clientes', value: customers.length },
-  ];
+  const LOW_STOCK_THRESHOLD = 5;
 
   const addressById = useMemo(() => {
     return addresses.reduce<Record<number, Address>>((acc, addr) => {
@@ -2790,17 +2813,87 @@ function Dashboard({
     }, {});
   }, [customers]);
 
-  const parseDate = (value?: string | null) => {
+  const parseDate = useCallback((value?: string | null) => {
     if (!value) return null;
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
-  };
+  }, []);
 
   const monthLabel = (date: Date) =>
     date.toLocaleDateString('pt-BR', {
       month: 'short',
       year: 'numeric',
     });
+
+  const totalInventoryItems = useMemo(() => {
+    return products.reduce((sum, product) => {
+      const qty = normalizeNumberValue(product.quantidade, true) ?? 0;
+      return sum + qty;
+    }, 0);
+  }, [products]);
+
+  const totalInventoryValue = useMemo(() => {
+    return products.reduce((sum, product) => {
+      const qty = normalizeNumberValue(product.quantidade, true) ?? 0;
+      const price = normalizeNumberValue(product.preco, true) ?? 0;
+      return sum + qty * price;
+    }, 0);
+  }, [products]);
+
+  const lowStockItems = useMemo(() => {
+    return products.filter((product) => (normalizeNumberValue(product.quantidade, true) ?? 0) <= LOW_STOCK_THRESHOLD);
+  }, [LOW_STOCK_THRESHOLD, products]);
+
+  type MovementRow = {
+    date: Date;
+    type: 'Entrada' | 'Saída';
+    label: string;
+    qty: number;
+    value?: number;
+  };
+
+  const recentMovements = useMemo(() => {
+    const deliveryRows: MovementRow[] = deliveries
+      .map((delivery) => {
+        const date = parseDate(delivery.data_entrada);
+        if (!date) return null;
+        const qty = normalizeNumberValue(delivery.quantidade, true);
+        const materialName = materials.find((mat) => mat.id === delivery.material_id)?.nome || 'Material';
+        const value = normalizeNumberValue(delivery.custo, true) * (delivery.quantidade ?? 1);
+        return { date, type: 'Entrada', label: materialName, qty, value } as MovementRow;
+      })
+      .filter(Boolean) as MovementRow[];
+
+    const shipmentRows: MovementRow[] = shipments
+      .map((shipment) => {
+        const date = parseDate(shipment.data_envio);
+        if (!date) return null;
+        const qty = normalizeNumberValue(shipment.quantidade, true);
+        const productName = products.find((prod) => prod.id === shipment.produto_id)?.nome || 'Produto';
+        const value = normalizeNumberValue(shipment.preco, true) * (shipment.quantidade ?? 1);
+        return { date, type: 'Saída', label: productName, qty, value } as MovementRow;
+      })
+      .filter(Boolean) as MovementRow[];
+
+    return [...deliveryRows, ...shipmentRows]
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 8);
+  }, [deliveries, materials, parseDate, products, shipments]);
+
+  const dashboardMetrics = [
+    { label: 'Itens em estoque', value: totalInventoryItems.toLocaleString('pt-BR'), helper: 'Soma das quantidades disponíveis.' },
+    { label: 'Valor total do estoque', value: formatCurrencyBRL(totalInventoryValue), helper: 'Quantidade x preço unitário.' },
+    {
+      label: 'Itens com estoque baixo',
+      value: lowStockItems.length.toLocaleString('pt-BR'),
+      helper: `Até ${LOW_STOCK_THRESHOLD} unidades.`,
+    },
+    {
+      label: 'Movimentações recentes',
+      value: recentMovements.length.toLocaleString('pt-BR'),
+      helper: 'Entradas e saídas mais recentes.',
+    },
+  ];
 
   const monthlySales = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -2885,25 +2978,26 @@ function Dashboard({
       <header className="panel__header">
         <div>
           <h1>Dashboard</h1>
-          <p className="muted">Visão rápida das principais entidades e desempenho.</p>
+          <p className="muted">Visão rápida das principais métricas operacionais e desempenho.</p>
         </div>
       </header>
       <section className="panel__section grid grid--4">
-        {summary.map((item) => (
-          <div key={item.label} className="card">
+        {dashboardMetrics.map((item) => (
+          <div key={item.label} className="card card--metric">
             <p className="muted">{item.label}</p>
             <h2>{item.value}</h2>
+            <p className="muted small">{item.helper}</p>
           </div>
         ))}
       </section>
       <section className="panel__section grid grid--2">
         <div className="card">
           <SectionHeader title="Vendas mensais" subtitle="Total enviado por mês" />
-          <BarChart data={monthlySales} />
+          <BarChart data={monthlySales} color="#14b6a2" valueFormatter={formatCurrencyBRL} />
         </div>
         <div className="card">
           <SectionHeader title="Compras mensais" subtitle="Entradas de materiais" />
-          <BarChart data={monthlyPurchases} />
+          <BarChart data={monthlyPurchases} color="#0ea5e9" valueFormatter={formatCurrencyBRL} />
         </div>
       </section>
       <section className="panel__section grid grid--3">
@@ -2931,7 +3025,54 @@ function Dashboard({
         </div>
         <div className="card">
           <SectionHeader title="Bairros com mais entregas" />
-          <BarChart data={deliveriesByNeighborhood} />
+          <BarChart data={deliveriesByNeighborhood} color="#8b5cf6" />
+        </div>
+      </section>
+      <section className="panel__section grid grid--2">
+        <div className="card card--bordered">
+          <SectionHeader title="Itens com estoque baixo" subtitle={`Itens com ≤ ${LOW_STOCK_THRESHOLD} unidades`} />
+          {lowStockItems.length ? (
+            <ul className="list list--bordered">
+              {lowStockItems.slice(0, 6).map((item) => (
+                <li key={item.id || item.codigo} className="list__item">
+                  <div>
+                    <strong>{item.nome}</strong>
+                    <p className="muted small">
+                      {(item.quantidade ?? 0).toLocaleString('pt-BR')} unidades • {formatCurrencyBRL(item.preco || 0)}
+                    </p>
+                  </div>
+                  <span className="badge badge--soft">{item.quantidade ?? 0} un.</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="Nenhum item abaixo do limite." />
+          )}
+        </div>
+        <div className="card card--bordered">
+          <SectionHeader title="Movimentações recentes" subtitle="Entradas e saídas do estoque" />
+          {recentMovements.length ? (
+            <ul className="timeline">
+              {recentMovements.map((move, index) => (
+                <li key={`${move.label}-${move.date.getTime()}-${index}`} className="timeline__item">
+                  <div className={`timeline__dot ${move.type === 'Saída' ? 'is-out' : 'is-in'}`} />
+                  <div className="timeline__body">
+                    <div className="timeline__title">
+                      <strong>{move.label}</strong>
+                      <span className="badge badge--soft">{move.type}</span>
+                    </div>
+                    <p className="muted small">
+                      {move.qty.toLocaleString('pt-BR')} unidades •{' '}
+                      {move.value ? formatCurrencyBRL(move.value) : 'Sem valor informado'}
+                    </p>
+                    <p className="muted small">{move.date.toLocaleString('pt-BR')}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="Nenhuma movimentação registrada ainda." />
+          )}
         </div>
       </section>
       <section className="panel__section">
@@ -3149,6 +3290,19 @@ function App() {
     loadShipments();
     loadFeedback();
   }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
+
+  useEffect(() => {
+    if (!authenticated || page !== 'dashboard') return;
+
+    const interval = setInterval(() => {
+      loadProducts();
+      loadDeliveries();
+      loadShipments();
+      loadOrders();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [authenticated, page, loadDeliveries, loadOrders, loadProducts, loadShipments]);
 
   useEffect(() => {
     const INACTIVITY_LIMIT = 20 * 60 * 1000;
