@@ -15,6 +15,8 @@ const API_BASE =
   import.meta.env.VITE_API_BASE ||
   'https://projeto-vitoriacestas-backend.vercel.app/api';
 
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
 const STORAGE_TOKEN_KEY = 'vitoriacestas_token';
 
 interface LoginPayload {
@@ -142,6 +144,9 @@ interface FeedbackRow {
 interface UploadResponse {
   url?: string;
   path?: string;
+  publicUrl?: string;
+  blobUrl?: string;
+  blobDownloadUrl?: string;
 }
 
 interface ColumnDef<T> {
@@ -162,6 +167,16 @@ const normalizeIdValue = (value?: number | string | null) => {
 const normalizeOptionalString = (value?: string | null) => {
   const trimmed = value?.trim() || '';
   return trimmed ? trimmed : null;
+};
+
+const buildPublicImageUrl = (value?: string | null) => {
+  const normalized = normalizeOptionalString(value ?? undefined);
+  if (!normalized) return undefined;
+  if (/^(https?:\/\/|blob:)/i.test(normalized)) return normalized;
+
+  const base = API_ORIGIN.replace(/\/+$, '');
+  const path = normalized.replace(/^\/+/, '');
+  return `${base}/${path}`;
 };
 
 const normalizeNumberValue = (value?: number | string | null, allowNull = false) => {
@@ -267,7 +282,7 @@ const saveImageCache = (key: string, cache: Record<string, string>) => {
 };
 
 const cacheImage = (key: string, identifier?: string | number | null, url?: string | null) => {
-  const safeUrl = normalizeOptionalString(url || undefined);
+  const safeUrl = buildPublicImageUrl(url);
   if (!identifier || !safeUrl) return;
   const cache = loadImageCache(key);
   cache[String(identifier)] = safeUrl;
@@ -284,7 +299,8 @@ const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }
     const identifier = getIdentifier(item);
     const cached = identifier ? cache[String(identifier)] : undefined;
     if (cached && !item.imagem_url && !item.imagemUrl) {
-      return { ...item, imagem_url: cached, imagemUrl: cached } as T;
+      const resolved = buildPublicImageUrl(cached);
+      return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
     }
     return item;
   });
@@ -294,16 +310,16 @@ const mapProductResponse = (product: any): Product => ({
   ...product,
   fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
   fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
-  imagem_url: product?.imagem_url ?? product?.imagemUrl,
-  imagemUrl: product?.imagemUrl ?? product?.imagem_url,
+  imagem_url: buildPublicImageUrl(product?.imagem_url ?? product?.imagemUrl),
+  imagemUrl: buildPublicImageUrl(product?.imagemUrl ?? product?.imagem_url),
 });
 
 const mapMaterialResponse = (material: any): RawMaterial => ({
   ...material,
   datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
   dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
-  imagem_url: material?.imagem_url ?? material?.imagemUrl,
-  imagemUrl: material?.imagemUrl ?? material?.imagem_url,
+  imagem_url: buildPublicImageUrl(material?.imagem_url ?? material?.imagemUrl),
+  imagemUrl: buildPublicImageUrl(material?.imagemUrl ?? material?.imagem_url),
 });
 
 const mapSupplierResponse = (supplier: any): Supplier => ({
@@ -3151,9 +3167,12 @@ function App() {
       formData.append('file', file);
       try {
         const res = await request<UploadResponse>('/upload', { method: 'POST', body: formData });
-        return res.data.url || res.data.path || URL.createObjectURL(file);
+        const preferredUrl =
+          res.data.blobUrl || res.data.blobDownloadUrl || res.data.publicUrl || res.data.url || res.data.path;
+
+        return buildPublicImageUrl(preferredUrl) || URL.createObjectURL(file);
       } catch (err: any) {
-        setFeedback('Ative o endpoint /upload no backend para salvar blobs. Pré-visualização local aplicada.');
+        setFeedback('Não foi possível enviar a imagem. Pré-visualização local aplicada.');
         return URL.createObjectURL(file);
       }
     },
@@ -3343,7 +3362,7 @@ function App() {
       quantidade: normalizeNumberValue(payload.quantidade),
       preco: normalizeNumberValue(payload.preco),
       fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: buildPublicImageUrl(payload.imagem_url ?? payload.imagemUrl),
     };
 
     if (payload.id) {
@@ -3391,7 +3410,7 @@ function App() {
       tamanho: normalizeOptionalString(payload.tamanho),
       material: normalizeOptionalString(payload.material),
       acessorio: normalizeOptionalString(payload.acessorio),
-      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: buildPublicImageUrl(payload.imagem_url ?? payload.imagemUrl),
     };
 
     if (payload.id) {
