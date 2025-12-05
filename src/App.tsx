@@ -1,4 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart as ReBarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 const API_BASE =
   (window as any).APP_API_BASE ||
@@ -22,6 +32,7 @@ interface Address {
   rua: string;
   cep: string;
   numero: string;
+  bairro?: string;
 }
 
 interface Customer {
@@ -315,6 +326,11 @@ const mapPhoneResponse = (phone: any): Phone => ({
   ddi: phone?.ddi ?? '55',
 });
 
+const mapAddressResponse = (address: any): Address => ({
+  ...address,
+  bairro: address?.bairro ?? address?.district ?? undefined,
+});
+
 const mapManufacturingResponse = (row: any): Manufacturing => ({
   ...row,
   produto_id: normalizeIdValue(row?.produto_id ?? row?.produtoId),
@@ -577,12 +593,67 @@ function SectionHeader({ title, subtitle, extra }: { title: string; subtitle?: s
   );
 }
 
+function SearchControls({
+  value,
+  onChange,
+  field,
+  onFieldChange,
+  options,
+  onSearch,
+  placeholder = 'Digite para filtrar',
+  searchLabel = 'Buscar',
+  clearLabel = 'Limpar',
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  field: string;
+  onFieldChange: (val: any) => void;
+  options: { value: string; label: string }[];
+  onSearch?: () => void;
+  placeholder?: string;
+  searchLabel?: string;
+  clearLabel?: string;
+}) {
+  return (
+    <div className="search-panel search-panel--inline" style={{ marginBottom: '12px' }}>
+      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
+        <label className="form__group">
+          <span>Campo</span>
+          <select value={field} onChange={(e) => onFieldChange(e.target.value)}>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form__group">
+          <span>Pesquisar</span>
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        </label>
+        <div className="form__actions" style={{ margin: 0, justifyContent: 'flex-start', gap: '8px' }}>
+          {onSearch && (
+            <button className="btn" type="button" onClick={onSearch}>
+              {searchLabel}
+            </button>
+          )}
+          <button className="btn btn--ghost" type="button" onClick={() => onChange('')}>
+            {clearLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddressForm({
   onSubmit,
   onSearch,
+  addresses,
 }: {
   onSubmit: (address: Address) => Promise<void>;
-  onSearch: (term: string) => Promise<Address[]>;
+  onSearch: (term: string, field?: string) => Promise<Address[]>;
+  addresses: Address[];
 }) {
   const [form, setForm] = useState<Address>({ rua: '', cep: '', numero: '' });
   const [loading, setLoading] = useState(false);
@@ -590,15 +661,31 @@ function AddressForm({
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<Address[]>([]);
   const [editing, setEditing] = useState<Address | null>(null);
+  const [searchField, setSearchField] = useState<'all' | 'id' | 'rua' | 'numero' | 'cep'>('all');
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const displayedAddresses = results.length ? results : addresses;
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    if (!value.trim()) {
+      setResults([]);
+    }
+  };
+
+  const handleSubmit = async (
+    event?: React.FormEvent | React.MouseEvent<HTMLButtonElement>,
+    mode: 'create' | 'update' = editing ? 'update' : 'create'
+  ) => {
+    event?.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ ...form, id: editing?.id, cep: digitsOnly(form.cep) });
+      const payload = { ...form, id: mode === 'update' ? editing?.id : undefined, cep: digitsOnly(form.cep) } as Address;
+      await onSubmit(payload);
       setForm({ rua: '', cep: '', numero: '' });
-      setEditing(null);
+      if (mode === 'update') {
+        setEditing(null);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar endereço');
     } finally {
@@ -607,8 +694,26 @@ function AddressForm({
   };
 
   const handleSearch = async () => {
-    const data = await onSearch(searchTerm);
-    setResults(data);
+    const query = searchTerm.trim();
+    if (!query) {
+      setResults([]);
+      return;
+    }
+    const data = await onSearch(query, searchField === 'all' ? undefined : searchField);
+    if (data.length) {
+      setResults(data);
+      return;
+    }
+    const lowered = query.toLowerCase();
+    const local = addresses.filter((addr) => {
+      const matchesField = (value?: string | number | null) => String(value || '').toLowerCase().includes(lowered);
+      if (searchField === 'rua') return matchesField(addr.rua);
+      if (searchField === 'numero') return matchesField(addr.numero);
+      if (searchField === 'cep') return matchesField(addr.cep);
+      if (searchField === 'id') return matchesField(addr.id);
+      return matchesField(addr.rua) || matchesField(addr.numero) || matchesField(addr.cep) || matchesField(addr.id);
+    });
+    setResults(local);
   };
 
   const handleSelect = (address: Address) => {
@@ -616,41 +721,42 @@ function AddressForm({
     setForm({ rua: address.rua, numero: String(address.numero), cep: address.cep });
   };
 
+  const resetSearch = () => {
+    setResults([]);
+    setSearchTerm('');
+  };
+
   return (
-    <form className="form" onSubmit={handleSubmit}>
-      <div className="grid grid--3" style={{ alignItems: 'flex-end' }}>
-        <label className="form__group">
-          <span>Pesquisar endereço</span>
-          <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Rua, número ou CEP" />
-        </label>
-        <div className="form__group">
-          <button className="btn" type="button" onClick={handleSearch}>
-            Buscar
-          </button>
+    <form className="form" onSubmit={(e) => handleSubmit(e, editing ? 'update' : 'create')}>
+      <div className="table__actions" style={{ marginBottom: '12px', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span className="badge badge--soft">Busca de endereços</span>
+          {editing && <span className="badge">Editando #{editing.id}</span>}
         </div>
-        {editing && (
-          <div className="form__group">
-            <span className="muted">Editando #{editing.id}</span>
-            <button className="btn btn--ghost" type="button" onClick={() => setEditing(null)}>
-              Cancelar edição
-            </button>
-          </div>
+        {results.length > 0 && (
+          <button className="btn btn--ghost" type="button" onClick={resetSearch}>
+            Limpar busca
+          </button>
         )}
       </div>
-      {results.length > 0 && (
-        <div className="table" style={{ marginBottom: '12px' }}>
-          <div className="table__row table__head">
-            <span>Endereço</span>
-            <span>CEP</span>
-          </div>
-          {results.map((address) => (
-            <button key={address.id || `${address.rua}-${address.numero}`} type="button" className="table__row" onClick={() => handleSelect(address)}>
-              <span className="table__cell">{address.rua} {address.numero}</span>
-              <span className="table__cell">{address.cep}</span>
-            </button>
-          ))}
-        </div>
-      )}
+
+      <SearchControls
+        value={searchTerm}
+        onChange={handleSearchChange}
+        field={searchField}
+        onFieldChange={(val) => setSearchField(val as any)}
+        options={[
+          { value: 'all', label: 'Todos' },
+          { value: 'id', label: 'ID' },
+          { value: 'rua', label: 'Rua' },
+          { value: 'numero', label: 'Número' },
+          { value: 'cep', label: 'CEP' },
+        ]}
+        onSearch={handleSearch}
+        placeholder="Digite ID, rua, número ou CEP"
+        clearLabel="Limpar"
+      />
+
       <div className="grid grid--3">
         <label className="form__group">
           <span>Rua</span>
@@ -671,20 +777,85 @@ function AddressForm({
           />
         </label>
       </div>
+
+      <div className="table table--addresses" style={{ marginTop: '16px' }}>
+        <div className="table__row table__head">
+          <span>Endereço</span>
+          <span>CEP</span>
+        </div>
+        {displayedAddresses.map((address) => {
+          const isSelected = editing?.id === address.id;
+          return (
+            <div
+              key={address.id || `${address.rua}-${address.numero}`}
+              role="button"
+              tabIndex={0}
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => handleSelect(address)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleSelect(address);
+              }}
+            >
+              <span className="table__cell">{address.rua} {address.numero}</span>
+              <span className="table__cell">{address.cep}</span>
+            </div>
+          );
+        })}
+        {displayedAddresses.length === 0 && (
+          <div className="table__row">
+            <span className="table__cell">Nenhum endereço encontrado.</span>
+          </div>
+        )}
+      </div>
+
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
-        <button className="btn" type="submit" disabled={loading}>
+      <div className="form__actions" style={{ gap: '8px' }}>
+        <button className="btn" type="button" disabled={loading} onClick={(e) => handleSubmit(e, 'create')}>
           {loading ? 'Salvando...' : 'Cadastrar endereço'}
+        </button>
+        <button
+          className="btn btn--ghost"
+          type="button"
+          disabled={!editing || loading}
+          onClick={(e) => handleSubmit(e, 'update')}
+        >
+          Atualizar
         </button>
       </div>
     </form>
   );
 }
 
-function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (customer: Customer) => Promise<void> }) {
+function CustomerForm({
+  addresses,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  addresses: Address[];
+  onSubmit: (customer: Customer) => Promise<void>;
+  editing?: Customer | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Customer>({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        nome: editing.nome,
+        email: editing.email,
+        data_nascimento: normalizeDateValue(editing.data_nascimento) || '',
+        cpf: editing.cpf || '',
+        cnpj: editing.cnpj || '',
+        endereco_id: editing.endereco_id,
+      });
+    } else {
+      setForm({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -701,6 +872,7 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         cnpj: form.cnpj ? digitsOnly(form.cnpj) : undefined,
       });
       setForm({ nome: '', email: '', data_nascimento: '', cpf: '', cnpj: '', endereco_id: undefined });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar cliente');
     } finally {
@@ -752,19 +924,48 @@ function CustomerForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar cliente'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar cliente' : 'Cadastrar cliente'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (phone: Phone) => Promise<void> }) {
+function PhoneForm({
+  customers,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  customers: Customer[];
+  onSubmit: (phone: Phone) => Promise<void>;
+  editing?: Phone | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Phone>({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        cliente_id: editing.cliente_id,
+        ddi: editing.ddi || '55',
+        ddd: editing.ddd || '',
+        numero: editing.numero || '',
+      });
+    } else {
+      setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -778,6 +979,7 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
         cliente_id: form.cliente_id ? Number(form.cliente_id) : undefined,
       });
       setForm({ cliente_id: undefined, ddi: '55', ddd: '', numero: '' });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar telefone');
     } finally {
@@ -846,16 +1048,31 @@ function PhoneForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar telefone'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar telefone' : 'Cadastrar telefone'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit: (supplier: Supplier) => Promise<void> }) {
+function SupplierForm({
+  addresses,
+  onSubmit,
+  editing,
+  onClearEditing,
+}: {
+  addresses: Address[];
+  onSubmit: (supplier: Supplier) => Promise<void>;
+  editing?: Supplier | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Supplier>({
     cnpj: '',
     razao_social: '',
@@ -869,6 +1086,23 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
   const [error, setError] = useState<string | null>(null);
 
   const maskedPhone = maskPhone(`${form.ddi || ''}${form.telefone || ''}`, form.ddi || '55');
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        cnpj: editing.cnpj,
+        razao_social: editing.razao_social,
+        contato: editing.contato,
+        email: editing.email || '',
+        telefone: editing.telefone || '',
+        ddi: editing.ddi || '55',
+        endereco_id: normalizeIdValue(editing.endereco_id),
+      });
+    } else {
+      setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -887,6 +1121,7 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         endereco_id: normalizeIdValue(form.endereco_id),
       });
       setForm({ cnpj: '', razao_social: '', contato: '', email: '', telefone: '', ddi: '55', endereco_id: undefined });
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar fornecedor');
     } finally {
@@ -948,10 +1183,15 @@ function SupplierForm({ addresses, onSubmit }: { addresses: Address[]; onSubmit:
         </label>
       </div>
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar fornecedor'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar fornecedor' : 'Cadastrar fornecedor'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
@@ -1075,11 +1315,42 @@ function BulkImport({ label, onImport, exampleHint }: { label: string; onImport:
   );
 }
 
-function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[]; onSubmit: (product: Product) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
+function ProductForm({
+  suppliers,
+  onSubmit,
+  onUpload,
+  editing,
+  onClearEditing,
+}: {
+  suppliers: Supplier[];
+  onSubmit: (product: Product) => Promise<void>;
+  onUpload: (file: File) => Promise<string>;
+  editing?: Product | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<Product>({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        codigo: editing.codigo,
+        nome: editing.nome,
+        descricao: editing.descricao || '',
+        categoria: editing.categoria || 'produto',
+        quantidade: editing.quantidade || 0,
+        preco: editing.preco || 0,
+        fornecedor_id: normalizeIdValue(editing.fornecedor_id ?? editing.fornecedorId),
+      });
+      setImageUrl(editing.imagem_url || editing.imagemUrl);
+    } else {
+      setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
+      setImageUrl(undefined);
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1087,8 +1358,11 @@ function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[];
     setError(null);
     try {
       await onSubmit({ ...form, imagem_url: imageUrl });
-      setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
-      setImageUrl(undefined);
+      if (!editing) {
+        setForm({ codigo: '', nome: '', descricao: '', categoria: 'produto', quantidade: 0, preco: 0, fornecedor_id: null });
+        setImageUrl(undefined);
+      }
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar produto');
     } finally {
@@ -1168,20 +1442,55 @@ function ProductForm({ suppliers, onSubmit, onUpload }: { suppliers: Supplier[];
         onClear={() => setImageUrl(undefined)}
       />
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar produto'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar produto' : 'Cadastrar produto'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMaterial) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
+function RawMaterialForm({
+  onSubmit,
+  onUpload,
+  editing,
+  onClearEditing,
+}: {
+  onSubmit: (material: RawMaterial) => Promise<void>;
+  onUpload: (file: File) => Promise<string>;
+  editing?: RawMaterial | null;
+  onClearEditing?: () => void;
+}) {
   const [form, setForm] = useState<RawMaterial>({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        nome: editing.nome,
+        tipo: editing.tipo || '',
+        custo: editing.custo || 0,
+        datavalidade: editing.datavalidade || editing.dataValidade || '',
+        descricao: editing.descricao || '',
+        tamanho: editing.tamanho || '',
+        material: editing.material || '',
+        acessorio: editing.acessorio || '',
+      });
+      setImageUrl(editing.imagem_url || editing.imagemUrl);
+    } else {
+      setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
+      setImageUrl(undefined);
+    }
+  }, [editing]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1200,8 +1509,11 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
         acessorio: normalizeOptionalString(form.acessorio) || undefined,
         imagem_url: imageUrl || undefined,
       });
-      setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
-      setImageUrl(undefined);
+      if (!editing) {
+        setForm({ nome: '', tipo: '', custo: 0, datavalidade: '', descricao: '', tamanho: '', material: '', acessorio: '' });
+        setImageUrl(undefined);
+      }
+      onClearEditing?.();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar matéria-prima');
     } finally {
@@ -1271,16 +1583,21 @@ function RawMaterialForm({ onSubmit, onUpload }: { onSubmit: (material: RawMater
         onClear={() => setImageUrl(undefined)}
       />
       {error && <p className="form__error">{error}</p>}
-      <div className="form__actions">
+      <div className="form__actions" style={{ gap: '8px' }}>
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Cadastrar matéria-prima'}
+          {loading ? 'Salvando...' : editing ? 'Atualizar matéria-prima' : 'Cadastrar matéria-prima'}
         </button>
+        {editing && (
+          <button className="btn btn--ghost" type="button" disabled={loading} onClick={() => onClearEditing?.()}>
+            Cancelar edição
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function ProductsTable({ products }: { products: Product[] }) {
+function ProductsTable({ products, selectedId, onSelect }: { products: Product[]; selectedId?: number | null; onSelect?: (product: Product) => void }) {
   if (!products.length) return <EmptyState message="Nenhum produto cadastrado." />;
   const columns: ColumnDef<Product>[] = [
     { label: 'Nome', value: (row) => row.nome },
@@ -1304,31 +1621,43 @@ function ProductsTable({ products }: { products: Product[] }) {
           <span>Qtd</span>
           <span>Preço</span>
         </div>
-        {products.map((product) => (
-          <div key={product.id || product.codigo} className="table__row">
-            <div className="table__cell">
-              <div className="thumbnail">
-                {product.imagem_url || product.imagemUrl ? (
-                  <img src={product.imagem_url || product.imagemUrl} alt={`Imagem de ${product.nome}`} />
-                ) : (
-                  <span className="muted">Sem imagem</span>
-                )}
+        {products.map((product) => {
+          const isSelected = selectedId && selectedId === product.id;
+          return (
+            <div
+              key={product.id || product.codigo}
+              role="button"
+              tabIndex={0}
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => onSelect?.(product)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelect?.(product);
+              }}
+            >
+              <div className="table__cell">
+                <div className="thumbnail">
+                  {product.imagem_url || product.imagemUrl ? (
+                    <img src={product.imagem_url || product.imagemUrl} alt={`Imagem de ${product.nome}`} />
+                  ) : (
+                    <span className="muted">Sem imagem</span>
+                  )}
+                </div>
+                <strong>{product.nome}</strong>
+                <p className="muted">{product.descricao || 'Sem descrição'}</p>
               </div>
-              <strong>{product.nome}</strong>
-              <p className="muted">{product.descricao || 'Sem descrição'}</p>
+              <span className="table__cell">{product.codigo}</span>
+              <span className="table__cell">{product.categoria || 'Produto'}</span>
+              <span className="table__cell">{product.quantidade}</span>
+              <span className="table__cell">{money(product.preco)}</span>
             </div>
-            <span className="table__cell">{product.codigo}</span>
-            <span className="table__cell">{product.categoria || 'Produto'}</span>
-            <span className="table__cell">{product.quantidade}</span>
-            <span className="table__cell">{money(product.preco)}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
 }
 
-function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
+function MaterialsTable({ materials, selectedId, onSelect }: { materials: RawMaterial[]; selectedId?: number | null; onSelect?: (material: RawMaterial) => void }) {
   if (!materials.length) return <EmptyState message="Nenhuma matéria-prima cadastrada." />;
   const columns: ColumnDef<RawMaterial>[] = [
     { label: 'Nome', value: (row) => row.nome },
@@ -1354,24 +1683,36 @@ function MaterialsTable({ materials }: { materials: RawMaterial[] }) {
           <span>Custo</span>
           <span>Validade</span>
         </div>
-        {materials.map((material) => (
-          <div key={material.id || material.nome} className="table__row">
-            <div className="table__cell">
-              <div className="thumbnail">
-                {material.imagem_url || material.imagemUrl ? (
-                  <img src={material.imagem_url || material.imagemUrl} alt={`Imagem de ${material.nome}`} />
-                ) : (
-                  <span className="muted">Sem imagem</span>
-                )}
+        {materials.map((material) => {
+          const isSelected = selectedId && selectedId === material.id;
+          return (
+            <div
+              key={material.id || material.nome}
+              role="button"
+              tabIndex={0}
+              className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => onSelect?.(material)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelect?.(material);
+              }}
+            >
+              <div className="table__cell">
+                <div className="thumbnail">
+                  {material.imagem_url || material.imagemUrl ? (
+                    <img src={material.imagem_url || material.imagemUrl} alt={`Imagem de ${material.nome}`} />
+                  ) : (
+                    <span className="muted">Sem imagem</span>
+                  )}
+                </div>
+                <strong>{material.nome}</strong>
+                <p className="muted">{material.descricao || 'Sem descrição'}</p>
               </div>
-              <strong>{material.nome}</strong>
-              <p className="muted">{material.descricao || 'Sem descrição'}</p>
+              <span className="table__cell">{material.tipo || 'N/I'}</span>
+              <span className="table__cell">{money(material.custo || 0)}</span>
+              <span className="table__cell">{material.datavalidade || '--'}</span>
             </div>
-            <span className="table__cell">{material.tipo || 'N/I'}</span>
-            <span className="table__cell">{money(material.custo || 0)}</span>
-            <span className="table__cell">{material.datavalidade || '--'}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -2030,6 +2371,44 @@ function OperationsPage({
 
 function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMaterial, onUpload }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; onCreateProduct: (product: Product) => Promise<void>; onCreateMaterial: (material: RawMaterial) => Promise<void>; onUpload: (file: File) => Promise<string> }) {
   const [tab, setTab] = useState<'produtos' | 'materiais'>('produtos');
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productSearchField, setProductSearchField] = useState<'all' | 'nome' | 'codigo' | 'categoria'>('all');
+  const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+  const [materialSearchField, setMaterialSearchField] = useState<'all' | 'nome' | 'tipo' | 'material'>('all');
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearchTerm.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((prod) => {
+      const fields: Record<string, string> = {
+        nome: prod.nome?.toLowerCase() || '',
+        codigo: prod.codigo?.toLowerCase() || '',
+        categoria: prod.categoria?.toLowerCase() || '',
+      };
+      if (productSearchField === 'all') {
+        return Object.values(fields).some((value) => value.includes(query));
+      }
+      return fields[productSearchField]?.includes(query);
+    });
+  }, [productSearchField, productSearchTerm, products]);
+
+  const filteredMaterials = useMemo(() => {
+    const query = materialSearchTerm.trim().toLowerCase();
+    if (!query) return materials;
+    return materials.filter((mat) => {
+      const fields: Record<string, string> = {
+        nome: mat.nome?.toLowerCase() || '',
+        tipo: mat.tipo?.toLowerCase() || '',
+        material: mat.material?.toLowerCase() || '',
+      };
+      if (materialSearchField === 'all') {
+        return Object.values(fields).some((value) => value.includes(query));
+      }
+      return fields[materialSearchField]?.includes(query);
+    });
+  }, [materialSearchField, materialSearchTerm, materials]);
 
   return (
     <div className="panel">
@@ -2050,14 +2429,53 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
       {tab === 'produtos' ? (
         <section className="panel__section">
           <SectionHeader title="Produtos" subtitle="Código, categoria, estoque, preço e fornecedor" />
-          <ProductForm suppliers={suppliers} onSubmit={onCreateProduct} onUpload={onUpload} />
-          <ProductsTable products={products} />
+          <ProductForm
+            suppliers={suppliers}
+            onSubmit={onCreateProduct}
+            onUpload={onUpload}
+            editing={editingProduct}
+            onClearEditing={() => setEditingProduct(null)}
+          />
+          <SearchControls
+            value={productSearchTerm}
+            onChange={setProductSearchTerm}
+            field={productSearchField}
+            onFieldChange={setProductSearchField}
+            options={[
+              { value: 'all', label: 'Todos' },
+              { value: 'nome', label: 'Nome' },
+              { value: 'codigo', label: 'Código' },
+              { value: 'categoria', label: 'Categoria' },
+            ]}
+          />
+          <ProductsTable products={filteredProducts} selectedId={editingProduct?.id ?? null} onSelect={(prod) => setEditingProduct(prod)} />
         </section>
       ) : (
         <section className="panel__section">
           <SectionHeader title="Matéria-prima" subtitle="Dados completos para manufatura" />
-          <RawMaterialForm onSubmit={onCreateMaterial} onUpload={onUpload} />
-          <MaterialsTable materials={materials} />
+          <RawMaterialForm
+            onSubmit={onCreateMaterial}
+            onUpload={onUpload}
+            editing={editingMaterial}
+            onClearEditing={() => setEditingMaterial(null)}
+          />
+          <SearchControls
+            value={materialSearchTerm}
+            onChange={setMaterialSearchTerm}
+            field={materialSearchField}
+            onFieldChange={setMaterialSearchField}
+            options={[
+              { value: 'all', label: 'Todos' },
+              { value: 'nome', label: 'Nome' },
+              { value: 'tipo', label: 'Tipo' },
+              { value: 'material', label: 'Material' },
+            ]}
+          />
+          <MaterialsTable
+            materials={filteredMaterials}
+            selectedId={editingMaterial?.id ?? null}
+            onSelect={(mat) => setEditingMaterial(mat)}
+          />
         </section>
       )}
     </div>
@@ -2065,6 +2483,24 @@ function ItemsPage({ products, materials, suppliers, onCreateProduct, onCreateMa
 }
 
 function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers: Supplier[]; addresses: Address[]; onCreate: (supplier: Supplier) => Promise<void>; onImport: (rows: any[]) => Promise<void> }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'razao_social' | 'cnpj' | 'contato'>('all');
+  const [editing, setEditing] = useState<Supplier | null>(null);
+
+  const filteredSuppliers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return suppliers;
+    return suppliers.filter((sup) => {
+      const fields: Record<string, string> = {
+        razao_social: sup.razao_social.toLowerCase(),
+        cnpj: digitsOnly(sup.cnpj).toLowerCase(),
+        contato: sup.contato.toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [searchField, searchTerm, suppliers]);
+
   return (
     <div className="panel">
       <header className="panel__header">
@@ -2073,60 +2509,571 @@ function SuppliersPage({ suppliers, addresses, onCreate, onImport }: { suppliers
           <p className="muted">CNPJ, contato e endereço opcional conforme tabela.</p>
         </div>
       </header>
-      <SupplierForm addresses={addresses} onSubmit={onCreate} />
+      <SupplierForm addresses={addresses} onSubmit={onCreate} editing={editing} onClearEditing={() => setEditing(null)} />
       <BulkImport
         label="Importar fornecedores (.csv/.json)"
         exampleHint="Cabeçalhos esperados: cnpj, razaoSocial, contato, email, telefone, enderecoId"
         onImport={onImport}
       />
       <section className="panel__section">
-        <SectionHeader title="Últimos fornecedores" />
-        {suppliers.length ? (
-          <ul className="list list--bordered">
-            {suppliers.map((supplier) => (
-              <li key={supplier.id || supplier.cnpj} className="list__item">
-                <div>
-                  <strong>{supplier.razao_social}</strong>
-                  <p className="muted">CNPJ {maskCnpj(supplier.cnpj)}</p>
-                </div>
-                <div className="list__actions">
-                  {supplier.telefone && <span className="badge">{maskPhone(supplier.telefone)}</span>}
-                  {supplier.email && <span className="badge badge--soft">{supplier.email}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState message="Nenhum fornecedor cadastrado." />
-        )}
+        <SectionHeader title="Fornecedores" />
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'razao_social', label: 'Razão social' },
+            { value: 'cnpj', label: 'CNPJ' },
+            { value: 'contato', label: 'Contato' },
+          ]}
+        />
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Razão social</span>
+            <span>Contato</span>
+            <span>CNPJ</span>
+          </div>
+          {filteredSuppliers.map((supplier) => {
+            const isSelected = editing?.id === supplier.id;
+            return (
+              <div
+                key={supplier.id || supplier.cnpj}
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditing(supplier)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(supplier);
+                }}
+              >
+                <span className="table__cell">{supplier.razao_social}</span>
+                <span className="table__cell">{supplier.contato}</span>
+                <span className="table__cell">{maskCnpj(supplier.cnpj)}</span>
+              </div>
+            );
+          })}
+          {!filteredSuppliers.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum fornecedor encontrado.</span>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
 }
 
-function Dashboard({ products, materials, suppliers, customers }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; customers: Customer[] }) {
-  const summary = [
-    { label: 'Produtos', value: products.length },
-    { label: 'Matérias-primas', value: materials.length },
-    { label: 'Fornecedores', value: suppliers.length },
-    { label: 'Clientes', value: customers.length },
+function CustomersPage({
+  customers,
+  addresses,
+  onSubmit,
+  onImport,
+}: {
+  customers: Customer[];
+  addresses: Address[];
+  onSubmit: (customer: Customer) => Promise<void>;
+  onImport: (rows: any[]) => Promise<void>;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'nome' | 'cpf' | 'cnpj' | 'email'>('all');
+  const [editing, setEditing] = useState<Customer | null>(null);
+
+  const filteredCustomers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return customers;
+    return customers.filter((cust) => {
+      const fields: Record<string, string> = {
+        nome: cust.nome.toLowerCase(),
+        cpf: digitsOnly(cust.cpf || '').toLowerCase(),
+        cnpj: digitsOnly(cust.cnpj || '').toLowerCase(),
+        email: (cust.email || '').toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [customers, searchField, searchTerm]);
+
+  return (
+    <div className="panel">
+      <header className="panel__header">
+        <div>
+          <h1>Clientes</h1>
+          <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
+        </div>
+      </header>
+      <CustomerForm addresses={addresses} onSubmit={onSubmit} editing={editing} onClearEditing={() => setEditing(null)} />
+      <BulkImport
+        label="Importar clientes (.csv/.json)"
+        exampleHint="Campos: nome, email, dataNascimento, cpf/cnpj, enderecoId"
+        onImport={onImport}
+      />
+      <section className="panel__section">
+        <SectionHeader title="Clientes" />
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'nome', label: 'Nome' },
+            { value: 'cpf', label: 'CPF' },
+            { value: 'cnpj', label: 'CNPJ' },
+            { value: 'email', label: 'Email' },
+          ]}
+        />
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Nome</span>
+            <span>Documento</span>
+            <span>Email</span>
+          </div>
+          {filteredCustomers.map((customer) => {
+            const isSelected = editing?.id === customer.id;
+            const doc = customer.cpf ? maskCpf(customer.cpf) : customer.cnpj ? maskCnpj(customer.cnpj) : '--';
+            return (
+              <div
+                key={customer.id || customer.nome}
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditing(customer)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(customer);
+                }}
+              >
+                <span className="table__cell">{customer.nome}</span>
+                <span className="table__cell">{doc}</span>
+                <span className="table__cell">{customer.email || '--'}</span>
+              </div>
+            );
+          })}
+          {!filteredCustomers.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum cliente encontrado.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; phones: Phone[]; onSubmit: (phone: Phone) => Promise<void> }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState<'all' | 'cliente' | 'ddd' | 'numero'>('all');
+  const [editing, setEditing] = useState<Phone | null>(null);
+
+  const filteredPhones = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return phones;
+    return phones.filter((phone) => {
+      const clienteNome = customers.find((c) => c.id === phone.cliente_id)?.nome?.toLowerCase() || '';
+      const fields: Record<string, string> = {
+        cliente: clienteNome,
+        ddd: (phone.ddd || '').toLowerCase(),
+        numero: digitsOnly(phone.numero || '').toLowerCase(),
+      };
+      if (searchField === 'all') return Object.values(fields).some((val) => val.includes(query));
+      return fields[searchField]?.includes(query);
+    });
+  }, [customers, phones, searchField, searchTerm]);
+
+  return (
+    <div className="panel">
+      <header className="panel__header">
+        <div>
+          <h1>Telefones</h1>
+          <p className="muted">Associados a clientes com formatação +55 (DDD) número.</p>
+        </div>
+      </header>
+      <PhoneForm customers={customers} onSubmit={onSubmit} editing={editing} onClearEditing={() => setEditing(null)} />
+      <section className="panel__section">
+        <SectionHeader title="Telefones" />
+        <SearchControls
+          value={searchTerm}
+          onChange={setSearchTerm}
+          field={searchField}
+          onFieldChange={(val) => setSearchField(val as any)}
+          options={[
+            { value: 'all', label: 'Todos' },
+            { value: 'cliente', label: 'Cliente' },
+            { value: 'ddd', label: 'DDD' },
+            { value: 'numero', label: 'Número' },
+          ]}
+        />
+        <div className="table" style={{ marginTop: '8px' }}>
+          <div className="table__row table__head">
+            <span>Cliente</span>
+            <span>DDD</span>
+            <span>Número</span>
+          </div>
+          {filteredPhones.map((phone) => {
+            const isSelected = editing?.id === phone.id;
+            const clienteNome = customers.find((c) => c.id === phone.cliente_id)?.nome || 'Cliente';
+            return (
+              <div
+                key={phone.id || `${phone.ddd}-${phone.numero}`}
+                className={`table__row is-selectable ${isSelected ? 'is-selected' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditing(phone)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setEditing(phone);
+                }}
+              >
+                <span className="table__cell">{clienteNome}</span>
+                <span className="table__cell">{phone.ddd || '--'}</span>
+                <span className="table__cell">{formatPhoneInput(phone.ddi || '55', phone.ddd || '', phone.numero || '')}</span>
+              </div>
+            );
+          })}
+          {!filteredPhones.length && (
+            <div className="table__row">
+              <span className="table__cell">Nenhum telefone encontrado.</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type ChartPoint = { label: string; value: number };
+
+function formatCurrencyBRL(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function BarChart({
+  data,
+  color = '#1fe4ce',
+  valueFormatter = (value: number) => value.toLocaleString('pt-BR'),
+}: {
+  data: ChartPoint[];
+  color?: string;
+  valueFormatter?: (value: number) => string | number;
+}) {
+  if (!data.length) return <EmptyState message="Sem dados suficientes para gerar o gráfico." />;
+
+  return (
+    <div className="chart-card">
+      <ResponsiveContainer width="100%" height={260}>
+        <ReBarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-10} height={50} textAnchor="end" />
+          <YAxis tick={{ fontSize: 12 }} />
+          <RechartsTooltip
+            cursor={{ fill: 'rgba(31, 228, 206, 0.08)' }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }}
+            formatter={(value: number) => valueFormatter(value)}
+          />
+          <Legend formatter={(value) => value} wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="value" name="Total" radius={[6, 6, 0, 0]} fill={color} />
+        </ReBarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function Dashboard({
+  products,
+  materials,
+  suppliers,
+  customers,
+  shipments,
+  deliveries,
+  orders,
+  addresses,
+}: {
+  products: Product[];
+  materials: RawMaterial[];
+  suppliers: Supplier[];
+  customers: Customer[];
+  shipments: Shipment[];
+  deliveries: MaterialDelivery[];
+  orders: Order[];
+  addresses: Address[];
+}) {
+  const LOW_STOCK_THRESHOLD = 5;
+
+  const addressById = useMemo(() => {
+    return addresses.reduce<Record<number, Address>>((acc, addr) => {
+      if (addr.id) acc[addr.id] = addr;
+      return acc;
+    }, {});
+  }, [addresses]);
+
+  const customerById = useMemo(() => {
+    return customers.reduce<Record<number, Customer>>((acc, customer) => {
+      if (customer.id) acc[customer.id] = customer;
+      return acc;
+    }, {});
+  }, [customers]);
+
+  const parseDate = useCallback((value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }, []);
+
+  const monthLabel = (date: Date) =>
+    date.toLocaleDateString('pt-BR', {
+      month: 'short',
+      year: 'numeric',
+    });
+
+  const totalInventoryItems = useMemo(() => {
+    return products.reduce((sum, product) => {
+      const qty = normalizeNumberValue(product.quantidade, true) ?? 0;
+      return sum + qty;
+    }, 0);
+  }, [products]);
+
+  const totalInventoryValue = useMemo(() => {
+    return products.reduce((sum, product) => {
+      const qty = normalizeNumberValue(product.quantidade, true) ?? 0;
+      const price = normalizeNumberValue(product.preco, true) ?? 0;
+      return sum + qty * price;
+    }, 0);
+  }, [products]);
+
+  const lowStockItems = useMemo(() => {
+    return products.filter((product) => (normalizeNumberValue(product.quantidade, true) ?? 0) <= LOW_STOCK_THRESHOLD);
+  }, [LOW_STOCK_THRESHOLD, products]);
+
+  type MovementRow = {
+    date: Date;
+    type: 'Entrada' | 'Saída';
+    label: string;
+    qty: number;
+    value?: number;
+  };
+
+  const recentMovements = useMemo(() => {
+    const deliveryRows: MovementRow[] = deliveries
+      .map((delivery) => {
+        const date = parseDate(delivery.data_entrada);
+        if (!date) return null;
+        const qty = normalizeNumberValue(delivery.quantidade, true);
+        const materialName = materials.find((mat) => mat.id === delivery.material_id)?.nome || 'Material';
+        const value = normalizeNumberValue(delivery.custo, true) * (delivery.quantidade ?? 1);
+        return { date, type: 'Entrada', label: materialName, qty, value } as MovementRow;
+      })
+      .filter(Boolean) as MovementRow[];
+
+    const shipmentRows: MovementRow[] = shipments
+      .map((shipment) => {
+        const date = parseDate(shipment.data_envio);
+        if (!date) return null;
+        const qty = normalizeNumberValue(shipment.quantidade, true);
+        const productName = products.find((prod) => prod.id === shipment.produto_id)?.nome || 'Produto';
+        const value = normalizeNumberValue(shipment.preco, true) * (shipment.quantidade ?? 1);
+        return { date, type: 'Saída', label: productName, qty, value } as MovementRow;
+      })
+      .filter(Boolean) as MovementRow[];
+
+    return [...deliveryRows, ...shipmentRows]
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 8);
+  }, [deliveries, materials, parseDate, products, shipments]);
+
+  const dashboardMetrics = [
+    { label: 'Itens em estoque', value: totalInventoryItems.toLocaleString('pt-BR'), helper: 'Soma das quantidades disponíveis.' },
+    { label: 'Valor total do estoque', value: formatCurrencyBRL(totalInventoryValue), helper: 'Quantidade x preço unitário.' },
+    {
+      label: 'Itens com estoque baixo',
+      value: lowStockItems.length.toLocaleString('pt-BR'),
+      helper: `Até ${LOW_STOCK_THRESHOLD} unidades.`,
+    },
+    {
+      label: 'Movimentações recentes',
+      value: recentMovements.length.toLocaleString('pt-BR'),
+      helper: 'Entradas e saídas mais recentes.',
+    },
   ];
+
+  const monthlySales = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+
+    shipments.forEach((shipment) => {
+      const date = parseDate(shipment.data_envio);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      labels[key] = monthLabel(date);
+      const amount = (shipment.preco ?? 0) * (shipment.quantidade ?? 1);
+      totals[key] = (totals[key] || 0) + amount;
+    });
+
+    return Object.entries(totals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ label: labels[key] || key, value }));
+  }, [shipments]);
+
+  const monthlyPurchases = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+
+    deliveries.forEach((delivery) => {
+      const date = parseDate(delivery.data_entrada);
+      if (!date) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      labels[key] = monthLabel(date);
+      const amount = (delivery.custo ?? 0) * (delivery.quantidade ?? 1);
+      totals[key] = (totals[key] || 0) + amount;
+    });
+
+    return Object.entries(totals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ label: labels[key] || key, value }));
+  }, [deliveries]);
+
+  const topSellingProduct = useMemo(() => {
+    const totals: Record<number, number> = {};
+    shipments.forEach((shipment) => {
+      if (!shipment.produto_id) return;
+      const qty = normalizeNumberValue(shipment.quantidade, true) ?? 0;
+      totals[shipment.produto_id] = (totals[shipment.produto_id] || 0) + qty;
+    });
+    const [id, qty] = Object.entries(totals).sort(([, a], [, b]) => Number(b) - Number(a))[0] || [];
+    const productName = id ? products.find((prod) => prod.id === Number(id))?.nome || 'Produto' : null;
+    return productName ? { name: productName, qty } : null;
+  }, [products, shipments]);
+
+  const topPurchasedMaterial = useMemo(() => {
+    const totals: Record<number, number> = {};
+    deliveries.forEach((delivery) => {
+      if (!delivery.material_id) return;
+      const qty = normalizeNumberValue(delivery.quantidade, true) ?? 0;
+      totals[delivery.material_id] = (totals[delivery.material_id] || 0) + qty;
+    });
+    const [id, qty] = Object.entries(totals).sort(([, a], [, b]) => Number(b) - Number(a))[0] || [];
+    const materialName = id ? materials.find((mat) => mat.id === Number(id))?.nome || 'Matéria-prima' : null;
+    return materialName ? { name: materialName, qty } : null;
+  }, [deliveries, materials]);
+
+  const deliveriesByNeighborhood = useMemo(() => {
+    const totals: Record<string, number> = {};
+
+    shipments.forEach((shipment) => {
+      if (!shipment.pedido_id) return;
+      const order = orders.find((o) => o.id === shipment.pedido_id);
+      const customer = order?.cliente_id ? customerById[order.cliente_id] : null;
+      const address = customer?.endereco_id ? addressById[customer.endereco_id] : null;
+      const neighborhood = address?.bairro || order?.endereco || address?.rua || 'Sem bairro';
+      totals[neighborhood] = (totals[neighborhood] || 0) + (shipment.quantidade ?? 0);
+    });
+
+    return Object.entries(totals)
+      .sort(([, a], [, b]) => Number(b) - Number(a))
+      .slice(0, 5)
+      .map(([label, value]) => ({ label, value }));
+  }, [addressById, customerById, orders, shipments]);
 
   return (
     <div className="panel">
       <header className="panel__header">
         <div>
           <h1>Dashboard</h1>
-          <p className="muted">Visão rápida das principais entidades.</p>
+          <p className="muted">Visão rápida das principais métricas operacionais e desempenho.</p>
         </div>
       </header>
       <section className="panel__section grid grid--4">
-        {summary.map((item) => (
-          <div key={item.label} className="card">
+        {dashboardMetrics.map((item) => (
+          <div key={item.label} className="card card--metric">
             <p className="muted">{item.label}</p>
             <h2>{item.value}</h2>
+            <p className="muted small">{item.helper}</p>
           </div>
         ))}
+      </section>
+      <section className="panel__section grid grid--2">
+        <div className="card">
+          <SectionHeader title="Vendas mensais" subtitle="Total enviado por mês" />
+          <BarChart data={monthlySales} color="#14b6a2" valueFormatter={formatCurrencyBRL} />
+        </div>
+        <div className="card">
+          <SectionHeader title="Compras mensais" subtitle="Entradas de materiais" />
+          <BarChart data={monthlyPurchases} color="#0ea5e9" valueFormatter={formatCurrencyBRL} />
+        </div>
+      </section>
+      <section className="panel__section grid grid--3">
+        <div className="card">
+          <SectionHeader title="Produto mais vendido" />
+          {topSellingProduct ? (
+            <>
+              <h3>{topSellingProduct.name}</h3>
+              <p className="muted">Quantidade enviada: {topSellingProduct.qty?.toLocaleString('pt-BR')}</p>
+            </>
+          ) : (
+            <EmptyState message="Sem vendas registradas." />
+          )}
+        </div>
+        <div className="card">
+          <SectionHeader title="Material mais comprado" />
+          {topPurchasedMaterial ? (
+            <>
+              <h3>{topPurchasedMaterial.name}</h3>
+              <p className="muted">Quantidade adquirida: {topPurchasedMaterial.qty?.toLocaleString('pt-BR')}</p>
+            </>
+          ) : (
+            <EmptyState message="Sem compras registradas." />
+          )}
+        </div>
+        <div className="card">
+          <SectionHeader title="Bairros com mais entregas" />
+          <BarChart data={deliveriesByNeighborhood} color="#8b5cf6" />
+        </div>
+      </section>
+      <section className="panel__section grid grid--2">
+        <div className="card card--bordered">
+          <SectionHeader title="Itens com estoque baixo" subtitle={`Itens com ≤ ${LOW_STOCK_THRESHOLD} unidades`} />
+          {lowStockItems.length ? (
+            <ul className="list list--bordered">
+              {lowStockItems.slice(0, 6).map((item) => (
+                <li key={item.id || item.codigo} className="list__item">
+                  <div>
+                    <strong>{item.nome}</strong>
+                    <p className="muted small">
+                      {(item.quantidade ?? 0).toLocaleString('pt-BR')} unidades • {formatCurrencyBRL(item.preco || 0)}
+                    </p>
+                  </div>
+                  <span className="badge badge--soft">{item.quantidade ?? 0} un.</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="Nenhum item abaixo do limite." />
+          )}
+        </div>
+        <div className="card card--bordered">
+          <SectionHeader title="Movimentações recentes" subtitle="Entradas e saídas do estoque" />
+          {recentMovements.length ? (
+            <ul className="timeline">
+              {recentMovements.map((move, index) => (
+                <li key={`${move.label}-${move.date.getTime()}-${index}`} className="timeline__item">
+                  <div className={`timeline__dot ${move.type === 'Saída' ? 'is-out' : 'is-in'}`} />
+                  <div className="timeline__body">
+                    <div className="timeline__title">
+                      <strong>{move.label}</strong>
+                      <span className="badge badge--soft">{move.type}</span>
+                    </div>
+                    <p className="muted small">
+                      {move.qty.toLocaleString('pt-BR')} unidades •{' '}
+                      {move.value ? formatCurrencyBRL(move.value) : 'Sem valor informado'}
+                    </p>
+                    <p className="muted small">{move.date.toLocaleString('pt-BR')}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="Nenhuma movimentação registrada ainda." />
+          )}
+        </div>
       </section>
       <section className="panel__section">
         <SectionHeader title="Sugestão de ordem" subtitle="1) Endereços → 2) Clientes/Fornecedores → 3) Telefones → 4) Itens" />
@@ -2254,7 +3201,7 @@ function App() {
   const loadAddresses = useCallback(async () => {
     try {
       const data = await guardedFetch<Address[]>('/addresses', 'addresses');
-      setAddresses(data || []);
+      setAddresses((data || []).map(mapAddressResponse));
     } catch (err: any) {
       setFeedback(err.message);
     }
@@ -2345,6 +3292,19 @@ function App() {
   }, [authenticated, page, loadProducts, loadMaterials, loadSuppliers, loadCustomers, loadAddresses, loadPhones, loadManufacturing, loadDeliveries, loadOrders, loadShipments, loadFeedback]);
 
   useEffect(() => {
+    if (!authenticated || page !== 'dashboard') return;
+
+    const interval = setInterval(() => {
+      loadProducts();
+      loadDeliveries();
+      loadShipments();
+      loadOrders();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [authenticated, page, loadDeliveries, loadOrders, loadProducts, loadShipments]);
+
+  useEffect(() => {
     const INACTIVITY_LIMIT = 20 * 60 * 1000;
     const events = ['click', 'keydown', 'mousemove', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, markActivity));
@@ -2367,24 +3327,41 @@ function App() {
 
   const handleCreateProduct = async (payload: Product) => {
     const duplicated = products.find(
-      (prod) => prod.codigo.trim() === payload.codigo.trim() || prod.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase()
+      (prod) =>
+        prod.id !== payload.id &&
+        (prod.codigo.trim() === payload.codigo.trim() || prod.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase())
     );
     if (duplicated) {
       setFeedback('Produto já cadastrado com este código ou nome.');
       return;
     }
+    const body = {
+      codigo: payload.codigo.trim(),
+      nome: payload.nome.trim(),
+      descricao: normalizeOptionalString(payload.descricao),
+      categoria: normalizeOptionalString(payload.categoria) || 'produto',
+      quantidade: normalizeNumberValue(payload.quantidade),
+      preco: normalizeNumberValue(payload.preco),
+      fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
+      imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
+    };
+
+    if (payload.id) {
+      const res = await request<Product>(`/items/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapProductResponse({ ...payload, ...res.data });
+      setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
+      setFeedback('Produto atualizado com sucesso.');
+      loadProducts();
+      setTimeout(loadProducts, 2000);
+      return;
+    }
+
     const res = await request<Product>('/items', {
       method: 'POST',
-      body: JSON.stringify({
-        codigo: payload.codigo.trim(),
-        nome: payload.nome.trim(),
-        descricao: normalizeOptionalString(payload.descricao),
-        categoria: normalizeOptionalString(payload.categoria) || 'produto',
-        quantidade: normalizeNumberValue(payload.quantidade),
-        preco: normalizeNumberValue(payload.preco),
-        fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-        imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Produto inserido com sucesso.');
     cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, payload.imagem_url ?? payload.imagemUrl);
@@ -2396,7 +3373,9 @@ function App() {
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
     const duplicated = materials.find(
-      (mat) => mat.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
+      (mat) =>
+        mat.id !== payload.id &&
+        mat.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
         (normalizeOptionalString(mat.tipo)?.toLowerCase() || '') === (normalizeOptionalString(payload.tipo)?.toLowerCase() || '')
     );
     if (duplicated) {
@@ -2415,6 +3394,19 @@ function App() {
       imagemUrl: normalizeOptionalString(payload.imagem_url ?? payload.imagemUrl),
     };
 
+    if (payload.id) {
+      const res = await request<RawMaterial>(`/materials/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapMaterialResponse({ ...payload, ...res.data });
+      setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
+      setFeedback('Matéria-prima atualizada com sucesso.');
+      loadMaterials();
+      setTimeout(loadMaterials, 2000);
+      return;
+    }
+
     const res = await request<RawMaterial>('/materials', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -2429,23 +3421,39 @@ function App() {
 
   const handleCreateSupplier = async (payload: Supplier) => {
     const cnpjDigits = digitsOnly(payload.cnpj);
-    if (suppliers.some((sup) => digitsOnly(sup.cnpj) === cnpjDigits)) {
+    const existingSupplier = suppliers.find((sup) => digitsOnly(sup.cnpj) === cnpjDigits);
+    if (!payload.id && existingSupplier) {
       setFeedback('Fornecedor já cadastrado com este CNPJ.');
       return;
     }
     const phoneDigits = digitsOnly(payload.telefone || '');
     const ddiValue = normalizeOptionalString(payload.ddi) || '';
 
+    const body = {
+      cnpj: digitsOnly(payload.cnpj),
+      razaoSocial: payload.razao_social.trim(),
+      contato: payload.contato.trim(),
+      email: normalizeOptionalString(payload.email),
+      telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
+      enderecoId: normalizeIdValue(payload.endereco_id),
+    };
+
+    if (payload.id) {
+      const res = await request<Supplier>(`/suppliers/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapSupplierResponse({ ...payload, ...res.data });
+      setSuppliers((prev) => prev.map((sup) => (sup.id === payload.id ? updated : sup)));
+      setFeedback('Fornecedor atualizado com sucesso.');
+      loadSuppliers();
+      setTimeout(loadSuppliers, 2000);
+      return;
+    }
+
     const res = await request<Supplier>('/suppliers', {
       method: 'POST',
-      body: JSON.stringify({
-        cnpj: digitsOnly(payload.cnpj),
-        razaoSocial: payload.razao_social.trim(),
-        contato: payload.contato.trim(),
-        email: normalizeOptionalString(payload.email),
-        telefone: phoneDigits ? `${ddiValue || '55'}${phoneDigits}` : null,
-        enderecoId: normalizeIdValue(payload.endereco_id),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Fornecedor salvo com sucesso.');
     setSuppliers((prev) => [mapSupplierResponse(res.data), ...prev]);
@@ -2456,24 +3464,41 @@ function App() {
   const handleCreateCustomer = async (payload: Customer) => {
     const cpfDigits = digitsOnly(payload.cpf || '');
     const cnpjDigits = digitsOnly(payload.cnpj || '');
-    if (customers.some((cust) => digitsOnly(cust.cpf || '') === cpfDigits && cpfDigits)) {
+    const existingCpf = customers.find((cust) => digitsOnly(cust.cpf || '') === cpfDigits && cpfDigits);
+    if (!payload.id && existingCpf) {
       setFeedback('Cliente já cadastrado com este CPF.');
       return;
     }
-    if (customers.some((cust) => digitsOnly(cust.cnpj || '') === cnpjDigits && cnpjDigits)) {
+    const existingCnpj = customers.find((cust) => digitsOnly(cust.cnpj || '') === cnpjDigits && cnpjDigits);
+    if (!payload.id && existingCnpj) {
       setFeedback('Cliente já cadastrado com este CNPJ.');
       return;
     }
+    const body = {
+      nome: payload.nome.trim(),
+      email: normalizeOptionalString(payload.email),
+      dataNascimento: normalizeDateValue(payload.data_nascimento),
+      cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
+      cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
+      enderecoId: normalizeIdValue(payload.endereco_id),
+    };
+
+    if (payload.id) {
+      const res = await request<Customer>(`/customers/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapCustomerResponse({ ...payload, ...res.data });
+      setCustomers((prev) => prev.map((cust) => (cust.id === payload.id ? updated : cust)));
+      setFeedback('Cliente atualizado com sucesso.');
+      loadCustomers();
+      setTimeout(loadCustomers, 2000);
+      return;
+    }
+
     const res = await request<Customer>('/customers', {
       method: 'POST',
-      body: JSON.stringify({
-        nome: payload.nome.trim(),
-        email: normalizeOptionalString(payload.email),
-        dataNascimento: normalizeDateValue(payload.data_nascimento),
-        cnpj: payload.cnpj ? digitsOnly(payload.cnpj) : undefined,
-        cpf: payload.cpf ? digitsOnly(payload.cpf) : undefined,
-        enderecoId: normalizeIdValue(payload.endereco_id),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Cliente salvo com sucesso.');
     setCustomers((prev) => [mapCustomerResponse(res.data), ...prev]);
@@ -2521,11 +3546,12 @@ function App() {
   };
 
   const searchAddresses = useCallback(
-    async (term: string) => {
+    async (term: string, field?: string) => {
       const query = term.trim();
       if (!query) return [] as Address[];
       try {
-        const res = await request<any>(`/addresses/search?query=${encodeURIComponent(query)}`);
+        const url = `/addresses/search?query=${encodeURIComponent(query)}${field ? `&field=${encodeURIComponent(field)}` : ''}`;
+        const res = await request<any>(url);
         const data = (res.data?.addresses || res.data || res.addresses || []) as Address[];
         return data;
       } catch (err) {
@@ -2537,13 +3563,28 @@ function App() {
   );
 
   const handleCreatePhone = async (payload: Phone) => {
+    const body = {
+      clienteId: normalizeIdValue(payload.cliente_id),
+      ddd: digitsOnly(payload.ddd || ''),
+      numero: digitsOnly(payload.numero || ''),
+    };
+
+    if (payload.id) {
+      const res = await request<Phone>(`/phones/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const updated = mapPhoneResponse({ ...payload, ...res.data });
+      setPhones((prev) => prev.map((phone) => (phone.id === payload.id ? updated : phone)));
+      setFeedback('Telefone atualizado com sucesso.');
+      loadPhones();
+      setTimeout(loadPhones, 2000);
+      return;
+    }
+
     const res = await request<Phone>('/phones', {
       method: 'POST',
-      body: JSON.stringify({
-        clienteId: normalizeIdValue(payload.cliente_id),
-        ddd: digitsOnly(payload.ddd || ''),
-        numero: digitsOnly(payload.numero || ''),
-      }),
+      body: JSON.stringify(body),
     });
     setFeedback('Telefone salvo com sucesso.');
     setPhones((prev) => [mapPhoneResponse(res.data), ...prev]);
@@ -2726,26 +3767,7 @@ function App() {
         return <SuppliersPage suppliers={suppliers} addresses={addresses} onCreate={handleCreateSupplier} onImport={importSuppliers} />;
       case 'customers':
         return (
-          <div className="panel">
-      <header className="panel__header">
-        <div>
-          <h1>Clientes</h1>
-          <p className="muted">CPF/CNPJ, data de nascimento e endereço obrigatório.</p>
-        </div>
-      </header>
-      <CustomerForm addresses={addresses} onSubmit={handleCreateCustomer} />
-      <BulkImport
-        label="Importar clientes (.csv/.json)"
-        exampleHint="Campos: nome, email, dataNascimento, cpf/cnpj, enderecoId"
-        onImport={importCustomers}
-      />
-      <SimpleList
-        title="Clientes"
-        items={customers}
-              emptyMessage="Nenhum cliente encontrado."
-              descriptor={(item) => item.email || 'Sem e-mail informado'}
-            />
-          </div>
+          <CustomersPage customers={customers} addresses={addresses} onSubmit={handleCreateCustomer} onImport={importCustomers} />
         );
       case 'addresses':
         return (
@@ -2756,41 +3778,29 @@ function App() {
           <p className="muted">Rua, número e CEP são obrigatórios.</p>
         </div>
       </header>
-      <AddressForm onSubmit={handleCreateAddress} onSearch={searchAddresses} />
+      <AddressForm onSubmit={handleCreateAddress} onSearch={searchAddresses} addresses={addresses} />
       <BulkImport
         label="Importar endereços (.csv/.json)"
         exampleHint="Campos: rua, numero, cep"
         onImport={importAddresses}
       />
-      <SimpleList
-        title="Endereços"
-        items={addresses as any}
-              emptyMessage="Nenhum endereço encontrado."
-              descriptor={(addr: Address) => `${addr.rua}, ${addr.numero} - CEP ${addr.cep}`}
-            />
           </div>
         );
       case 'phones':
-        return (
-          <div className="panel">
-            <header className="panel__header">
-              <div>
-                <h1>Telefones</h1>
-                <p className="muted">Associados a clientes com formatação +55 (DDD) número.</p>
-              </div>
-            </header>
-            <PhoneForm customers={customers} onSubmit={handleCreatePhone} />
-            <SimpleList
-              title="Telefones"
-              items={phones as any}
-              emptyMessage="Nenhum telefone encontrado."
-              descriptor={(phone: Phone) =>
-                formatPhoneInput(phone.ddi || '55', phone.ddd || '', phone.numero || '')}
-            />
-          </div>
-        );
+        return <PhonesPage customers={customers} phones={phones} onSubmit={handleCreatePhone} />;
       default:
-        return <Dashboard products={products} materials={materials} suppliers={suppliers} customers={customers} />;
+        return (
+          <Dashboard
+            products={products}
+            materials={materials}
+            suppliers={suppliers}
+            customers={customers}
+            shipments={shipments}
+            deliveries={deliveries}
+            orders={orders}
+            addresses={addresses}
+          />
+        );
     }
   }, [authenticated, page, products, materials, suppliers, customers, addresses, phones, uploadImage, orders, shipments, deliveries, manufacturing, feedbackRows, searchAddresses]);
 
