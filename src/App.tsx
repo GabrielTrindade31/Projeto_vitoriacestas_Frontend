@@ -2731,7 +2731,6 @@ function PhonesPage({ customers, phones, onSubmit }: { customers: Customer[]; ph
   );
 }
 
-function Dashboard({ products, materials, suppliers, customers }: { products: Product[]; materials: RawMaterial[]; suppliers: Supplier[]; customers: Customer[] }) {
 function BarChart({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(...data.map((item) => item.value), 0);
 
