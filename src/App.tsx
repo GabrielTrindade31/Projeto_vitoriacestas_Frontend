@@ -277,6 +277,30 @@ const DDI_OPTIONS = [
 const PRODUCT_IMAGE_CACHE_KEY = 'vc_product_images';
 const MATERIAL_IMAGE_CACHE_KEY = 'vc_material_images';
 
+const extractProductImageMap = (rows: any[]): Record<string, string> => {
+  const map: Record<string, string> = {};
+
+  (rows || []).forEach((row) => {
+    const identifier =
+      normalizeIdValue(
+        row?.id ?? row?.itemId ?? row?.item_id ?? row?.produtoId ?? row?.produto_id ?? row?.productId ?? row?.product_id
+      ) ?? undefined;
+    const resolved =
+      resolveBestImageUrl(row) ||
+      buildPublicImageUrl(
+        row?.url || row?.publicUrl || row?.imagem_url || row?.imagemUrl || row?.blobUrl || row?.blobDownloadUrl
+      );
+
+    if (!identifier || !resolved) return;
+
+    const key = String(identifier);
+    map[key] = resolved;
+    cacheImage(PRODUCT_IMAGE_CACHE_KEY, key, resolved);
+  });
+
+  return map;
+};
+
 const loadImageCache = (key: string): Record<string, string> => {
   try {
     const raw = localStorage.getItem(key);
@@ -317,6 +341,19 @@ const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }
       return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
     }
     return item;
+  });
+};
+
+const applyProductImageMap = (products: Product[], imageMap: Record<string, string>) => {
+  return products.map((product) => {
+    const identifier = normalizeIdValue(product.id ?? product.codigo ?? product.produtoId ?? product.produto_id);
+    const resolved = identifier ? buildPublicImageUrl(imageMap[String(identifier)]) : undefined;
+
+    if (resolved) {
+      return { ...product, imagem_url: resolved, imagemUrl: resolved };
+    }
+
+    return product;
   });
 };
 
@@ -3201,15 +3238,29 @@ function App() {
     [request]
   );
 
+  const fetchProductImages = useCallback(async () => {
+    try {
+      const res = await request<any>('/products/images');
+      const rows = (res?.data?.items || res?.data || res?.items || res || []) as any[];
+      return extractProductImageMap(rows);
+    } catch (err) {
+      console.warn('Falha ao carregar imagens de produtos', err);
+      return {} as Record<string, string>;
+    }
+  }, [request]);
+
   const loadProducts = useCallback(async () => {
     try {
-      const data = await guardedFetch<Product[]>('/items', 'items');
-      const mapped = (data || []).map(mapProductResponse);
+      const [data, imageMap] = await Promise.all([
+        guardedFetch<Product[]>('/items', 'items'),
+        fetchProductImages(),
+      ]);
+      const mapped = applyProductImageMap((data || []).map(mapProductResponse), imageMap);
       setProducts(mergeCachedImages(mapped, PRODUCT_IMAGE_CACHE_KEY, (item) => item.codigo || item.id));
     } catch (err: any) {
       setFeedback(err.message);
     }
-  }, [guardedFetch]);
+  }, [fetchProductImages, guardedFetch]);
 
   const loadMaterials = useCallback(async () => {
     try {
