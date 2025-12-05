@@ -327,6 +327,18 @@ const cacheImage = (key: string, identifier?: string | number | null, url?: stri
   saveImageCache(key, cache);
 };
 
+const cacheProductImage = (product: Partial<Product>, url?: string | null) => {
+  const resolved = buildPublicImageUrl(url);
+  cacheImage(PRODUCT_IMAGE_CACHE_KEY, product.id, resolved);
+  cacheImage(PRODUCT_IMAGE_CACHE_KEY, product.codigo, resolved);
+};
+
+const cacheMaterialImage = (material: Partial<RawMaterial>, url?: string | null) => {
+  const resolved = buildPublicImageUrl(url);
+  cacheImage(MATERIAL_IMAGE_CACHE_KEY, material.id, resolved);
+  cacheImage(MATERIAL_IMAGE_CACHE_KEY, material.nome, resolved);
+};
+
 const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }>(
   items: T[],
   key: string,
@@ -336,10 +348,16 @@ const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }
   return items.map((item) => {
     const identifier = getIdentifier(item);
     const cached = identifier ? cache[String(identifier)] : undefined;
-    if (cached && !item.imagem_url && !item.imagemUrl) {
-      const resolved = buildPublicImageUrl(cached);
+    const resolved = buildPublicImageUrl(cached);
+
+    if (resolved && (!item.imagem_url && !item.imagemUrl)) {
       return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
     }
+
+    if (resolved && resolved !== item.imagem_url && resolved !== item.imagemUrl) {
+      return { ...item, imagem_url: resolved, imagemUrl: resolved } as T;
+    }
+
     return item;
   });
 };
@@ -3446,6 +3464,7 @@ function App() {
         body: JSON.stringify(body),
       });
       const updated = mapProductResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
+      cacheProductImage({ id: payload.id, codigo: payload.codigo }, image);
       setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
       setFeedback('Produto atualizado com sucesso.');
       loadProducts();
@@ -3458,7 +3477,7 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Produto inserido com sucesso.');
-    cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, image);
+    cacheProductImage({ id: res.data?.id, codigo: payload.codigo }, image);
     const created = mapProductResponse({ ...res.data, imagemUrl: image, imagem_url: image });
     setProducts((prev) => [created, ...prev]);
     loadProducts();
@@ -3496,6 +3515,7 @@ function App() {
         body: JSON.stringify(body),
       });
       const updated = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
+      cacheMaterialImage({ id: payload.id, nome: payload.nome }, image);
       setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
       setFeedback('Matéria-prima atualizada com sucesso.');
       loadMaterials();
@@ -3508,7 +3528,7 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Matéria-prima inserida com sucesso.');
-    cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, image);
+    cacheMaterialImage({ id: res.data?.id, nome: payload.nome }, image);
     const created = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image, imagem_url: image });
     setMaterials((prev) => [created, ...prev]);
     loadMaterials();
