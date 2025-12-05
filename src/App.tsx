@@ -149,6 +149,20 @@ interface UploadResponse {
   blobDownloadUrl?: string;
 }
 
+const resolveBestImageUrl = (payload?: Record<string, any> | null) => {
+  if (!payload) return undefined;
+  const raw =
+    payload.blobUrl ||
+    payload.blobDownloadUrl ||
+    payload.publicUrl ||
+    payload.url ||
+    payload.path ||
+    payload.imagem_url ||
+    payload.imagemUrl;
+
+  return buildPublicImageUrl(raw);
+};
+
 interface ColumnDef<T> {
   label: string;
   value: (row: T) => string | number | null | undefined;
@@ -306,21 +320,29 @@ const mergeCachedImages = <T extends { imagem_url?: string; imagemUrl?: string }
   });
 };
 
-const mapProductResponse = (product: any): Product => ({
-  ...product,
-  fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
-  fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
-  imagem_url: buildPublicImageUrl(product?.imagem_url ?? product?.imagemUrl),
-  imagemUrl: buildPublicImageUrl(product?.imagemUrl ?? product?.imagem_url),
-});
+const mapProductResponse = (product: any): Product => {
+  const image = resolveBestImageUrl(product);
 
-const mapMaterialResponse = (material: any): RawMaterial => ({
-  ...material,
-  datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
-  dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
-  imagem_url: buildPublicImageUrl(material?.imagem_url ?? material?.imagemUrl),
-  imagemUrl: buildPublicImageUrl(material?.imagemUrl ?? material?.imagem_url),
-});
+  return {
+    ...product,
+    fornecedor_id: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+    fornecedorId: normalizeIdValue(product?.fornecedor_id ?? product?.fornecedorId),
+    imagem_url: image,
+    imagemUrl: image,
+  };
+};
+
+const mapMaterialResponse = (material: any): RawMaterial => {
+  const image = resolveBestImageUrl(material);
+
+  return {
+    ...material,
+    datavalidade: material?.datavalidade ?? material?.dataValidade ?? null,
+    dataValidade: material?.dataValidade ?? material?.datavalidade ?? null,
+    imagem_url: image,
+    imagemUrl: image,
+  };
+};
 
 const mapSupplierResponse = (supplier: any): Supplier => ({
   ...supplier,
@@ -3345,6 +3367,7 @@ function App() {
   }, [lastActivity, markActivity, saveToken, setPage, token]);
 
   const handleCreateProduct = async (payload: Product) => {
+    const image = resolveBestImageUrl(payload);
     const duplicated = products.find(
       (prod) =>
         prod.id !== payload.id &&
@@ -3362,7 +3385,7 @@ function App() {
       quantidade: normalizeNumberValue(payload.quantidade),
       preco: normalizeNumberValue(payload.preco),
       fornecedorId: normalizeIdValue(payload.fornecedor_id ?? payload.fornecedorId),
-      imagemUrl: buildPublicImageUrl(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: image,
     };
 
     if (payload.id) {
@@ -3370,7 +3393,7 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapProductResponse({ ...payload, ...res.data });
+      const updated = mapProductResponse({ ...payload, ...res.data, imagemUrl: image });
       setProducts((prev) => prev.map((prod) => (prod.id === payload.id ? updated : prod)));
       setFeedback('Produto atualizado com sucesso.');
       loadProducts();
@@ -3383,14 +3406,15 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Produto inserido com sucesso.');
-    cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, payload.imagem_url ?? payload.imagemUrl);
-    const created = mapProductResponse({ ...res.data, imagem_url: payload.imagem_url ?? payload.imagemUrl });
+    cacheImage(PRODUCT_IMAGE_CACHE_KEY, payload.codigo, image);
+    const created = mapProductResponse({ ...res.data, imagem_url: image });
     setProducts((prev) => [created, ...prev]);
     loadProducts();
     setTimeout(loadProducts, 2000);
   };
 
   const handleCreateMaterial = async (payload: RawMaterial) => {
+    const image = resolveBestImageUrl(payload);
     const duplicated = materials.find(
       (mat) =>
         mat.id !== payload.id &&
@@ -3410,7 +3434,7 @@ function App() {
       tamanho: normalizeOptionalString(payload.tamanho),
       material: normalizeOptionalString(payload.material),
       acessorio: normalizeOptionalString(payload.acessorio),
-      imagemUrl: buildPublicImageUrl(payload.imagem_url ?? payload.imagemUrl),
+      imagemUrl: image,
     };
 
     if (payload.id) {
@@ -3418,7 +3442,7 @@ function App() {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      const updated = mapMaterialResponse({ ...payload, ...res.data });
+      const updated = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image });
       setMaterials((prev) => prev.map((mat) => (mat.id === payload.id ? updated : mat)));
       setFeedback('Matéria-prima atualizada com sucesso.');
       loadMaterials();
@@ -3431,8 +3455,8 @@ function App() {
       body: JSON.stringify(body),
     });
     setFeedback('Matéria-prima inserida com sucesso.');
-    cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, payload.imagem_url ?? payload.imagemUrl);
-    const created = mapMaterialResponse({ ...payload, ...res.data });
+    cacheImage(MATERIAL_IMAGE_CACHE_KEY, payload.nome, image);
+    const created = mapMaterialResponse({ ...payload, ...res.data, imagemUrl: image });
     setMaterials((prev) => [created, ...prev]);
     loadMaterials();
     setTimeout(loadMaterials, 2000);
